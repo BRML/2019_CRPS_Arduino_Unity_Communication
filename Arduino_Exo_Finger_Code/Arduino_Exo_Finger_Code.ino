@@ -1,6 +1,6 @@
 #include <Servo.h>
 #include <math.h>
-//#include <Filters.h>
+#include <Filters.h>
 #include "Wire.h"
 #include "Adafruit_MLX90614.h"
 
@@ -11,7 +11,7 @@
 
 // Physical contraints //
 double mass = 5;                 // [kg]  Virtual mass of the admittance control scheme
-double damping = 5.0;            // [N*s/m] Virtual damping of the admittance control scheme
+double damping = 10.0;            // [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
@@ -62,6 +62,9 @@ String printout;                      // [] The string to be sent to the Console
 
 Adafruit_MLX90614 mlx;                // Set up IR Thermometer
 
+// create a one pole (RC) lowpass filter
+//FilterOnePole lowpassFilter( LOWPASS, 500 ); 
+
 // SETUP ROUTINE //
 void setup() {
   Serial.begin(9600);                 // Start Serial Communication and set Analog reference 
@@ -96,11 +99,11 @@ void loop() {
   
     // Read force sensors
     for(int iJoints = 0; iJoints<4; iJoints++){
-      Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints]) 
+      Force_Force_Sensor[iJoints] = ((analogRead(Force_Sensor_Pin[iJoints])) 
                                     - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;  
     } 
 
-    // Generate an assistive force; here, the force is the same for each finger 
+    // Generate an assistive force; here, the force is the same for all the joints of each finger 
     Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0);    
     Assistive_Force[1] = Assistive_Force[0];
     Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);    
@@ -116,7 +119,7 @@ void loop() {
     if (feedbackTime>(1/feedbackFreq)){
       readSensorBox();          // Read the sensors from the sensor box
       //outputData();             // Send data to the PC
-      //Print_Data2Console();     // Print the data to console (also on the PC)
+      Print_Data2Console();     // Print the data to console (also on the PC)
       
       feedbackTime = 0;
     } 
@@ -154,6 +157,7 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
     if(Kinetics[num].x < MIN_RANGE) Kinetics[num].x = MIN_RANGE;
     if(Kinetics[num].x > MAX_RANGE) Kinetics[num].x = MAX_RANGE;
 
+    // Set the motor position
     Motor[num].writeMicroseconds( Kinetics[num].x / MAX_RANGE * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
 }
 
@@ -161,25 +165,28 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 void Generate_Assistive_Force(double x_a, double x_b, int num)       
 {
      if( (x_a > Assistive_Force[num].Threshold_Position * MAX_RANGE || x_b > Assistive_Force[num].Threshold_Position * MAX_RANGE) && Assistive_Force[num].Direction == 0.5 )
-        Assistive_Force[num].Direction = 1;
+        Assistive_Force[num].Direction = 1;       // Assistive Force pushing forward
     
      if( (x_a < (1-Assistive_Force[num].Threshold_Position) * MAX_RANGE || x_b < (1-Assistive_Force[num].Threshold_Position) * MAX_RANGE) && Assistive_Force[num].Direction == -0.5 ) 
-        Assistive_Force[num].Direction = -1;
+        Assistive_Force[num].Direction = -1;      // Assistive Force pushing backward
     
      if(x_a == MAX_RANGE && x_b == MAX_RANGE && Assistive_Force[num].Direction == 1) 
-        Assistive_Force[num].Direction = -0.5; 
+        Assistive_Force[num].Direction = -0.5;    // Assistive Force ready to push backward
       
-     if (x_a == MIN_RANGE && x_b == MAX_RANGE && Assistive_Force[num].Direction == -1)
-        Assistive_Force[num].Direction = 0.5; 
+     if (x_a == MIN_RANGE && x_b == MIN_RANGE && Assistive_Force[num].Direction == -1)
+        Assistive_Force[num].Direction = 0.5;     // Assistive Force ready to push forward
     
-     if(Assistive_Force[num].Force_Level < fMAX_Assistance_Force  && Assistive_Force[num].Direction ==  1)
-        Assistive_Force[num].Force_Level = Assistive_Force[num].Force_Level + 0.001;
+     if(Assistive_Force[num].Force_Level < fMAX_Assistance_Force && Assistive_Force[num].Direction ==  1)
+        Assistive_Force[num].Force_Level = Assistive_Force[num].Force_Level + 0.001;  // Assistive Force Level incremented to push further forward
     
      if(Assistive_Force[num].Force_Level > -fMAX_Assistance_Force && Assistive_Force[num].Direction == -1)
-        Assistive_Force[num].Force_Level = Assistive_Force[num].Force_Level - 0.001;
+        Assistive_Force[num].Force_Level = Assistive_Force[num].Force_Level - 0.001;  // Assistive Force Level incremented to push further backward
     
      if(Assistive_Force[num].Direction == 0.5 || Assistive_Force[num].Direction == -0.5)
-        Assistive_Force[num].Force_Level = 0;
+        Assistive_Force[num].Force_Level = 0;                                         // Assistive Force Level set to zero
+
+     if(fMAX_Assistance_Force ==  0)      // Emergency shut off
+        Assistive_Force[num].Force_Level = 0;   
 }
     
 // FUNCTION : After starting the serial connection all the settings are read in from Unity3D
@@ -237,9 +244,8 @@ void Print_Data2Console()
     printout += timestep * 1000;
     printout += " ms, Feedbacktime ";
     printout += feedbackTime;
-    printout += " ms, Acc:";
-    printout += Kinetics[0].ddx;
-    printout += ", Vel:";
-    printout += Kinetics[0].dx;
+    printout += " s, Assistive Force Level ";
+    printout +=  Assistive_Force[0].Force_Level;
+   
     Serial.println(printout);   
 }
