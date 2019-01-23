@@ -1,0 +1,5 @@
+Critical delays caused by:
+
+- Reading the IR Thermometer
+- Filtering analog inputs
+- Motor Delay !!!

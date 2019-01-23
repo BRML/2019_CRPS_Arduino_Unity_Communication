@@ -1,18 +1,34 @@
 #include <Servo.h>
 #include <math.h>
 #include <Filters.h>
-#include "Wire.h"
-#include "Adafruit_MLX90614.h"
-//#include "psgolayp/psgolayp.h"
+#include <Arduino.h>
+#include <include/twi.h>
 
 #define MAX_VEL 0.2              // [m/s] Maximum velocity of the motors
 #define MAX_ACC 0.5              // [m/s^2] Maximum acceleration of the motors
 #define MIN_SIGNAL_DURATION 1000 // [microseconds]
 #define MAX_SIGNAL_OFFSET 1000   // [microseconds]
 
+// Definitions for communication with the IR Thermometer //
+#define ADDR      0x5A
+
+//EEPROM 32x16
+#define TO_MAX    0x00
+#define TO_MIN    0x01
+#define PWM_CTRL  0x02
+
+//RAM 32x16
+#define RAW_IR_1  0x04
+#define RAW_IR_2  0x05
+#define TA        0x06
+#define TOBJ_1    0x07
+#define TOBJ_2    0x08
+
+#define SYNC_PIN  2
+
 // Physical contraints //
 double mass = 5;                 // [kg]  Virtual mass of the admittance control scheme
-double damping = 10.0;            // [N*s/m] Virtual damping of the admittance control scheme
+double damping = 10.0;           // [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
@@ -54,24 +70,33 @@ float fTemperature_Value = 0;         // [C] Measured Temperature
 
 // Communication variables //
 float timestep = 0;                   // [s] Time for one iteration of the main loop
-float feedbackFreq = 4;               // [1/s] Data is sent to the PC this many times per seconds
+float feedbackFreq = 4.0;             // [1/s] Data is sent to the PC this many times per seconds
 float feedbackTime = 0;               // [s] Time since the last feedback was sent to the PC
 double start = 0;                     // [s] Measures the time instant for the start of each iteration
 double stp = 0;                       // [s] Measures the time instand for the end of each iteration
 String outString;                     // [] The string to be sent to the PC
 String printout;                      // [] The string to be sent to the Console
 
-Adafruit_MLX90614 mlx;                // Set up IR Thermometer
+static const uint32_t TWI_CLOCK = 100000;     // IR Thermometer Communication Variable
+static const uint32_t RECV_TIMEOUT = 100000;  // IR Thermometer Communication Variable
+static const uint32_t XMIT_TIMEOUT = 100000;  // IR Thermometer Communication Variable
 
-// create a one pole (RC) lowpass filter
-//FilterOnePole lowpassFilter( LOWPASS, 500 ); 
+Twi *pTwi = WIRE_INTERFACE;           // Communication handle to the IR Thermometer
+
+//FilterOnePole lowpassFilter( LOWPASS, 1000 );  // create a one pole (RC) lowpass filter
 
 // SETUP ROUTINE //
 void setup() {
-  Serial.begin(9600);                 // Start Serial Communication and set Analog reference 
-  mlx.begin();                        // Start IR Thermometer readouts
-  analogReference(INTERNAL2V56);      // Set the internal reference of the Arduino to 2.56V (necessary for the force sensors)
+  Serial.begin(9600);                 // Start Serial Communication and set Analog reference
+
   //setValues();                        // Obtain Settings for all the joints from Unity3D           
+
+  // Set up communication with the IR Thermometer
+  pinMode(SYNC_PIN, OUTPUT);          
+  digitalWrite(SYNC_PIN, LOW);
+  Wire_Init();
+  pTwi->TWI_PTCR = UART_PTCR_RXTDIS | UART_PTCR_TXTDIS;
+  TWI_ConfigureMaster(pTwi, TWI_CLOCK, VARIANT_MCK);
   
   //Attach servos
   for(int iJoints = 0; iJoints<4; iJoints++){
@@ -117,22 +142,52 @@ void loop() {
     Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);
     
     // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
-    if (feedbackTime>(1/feedbackFreq)){
+    if (feedbackTime>(1.0/feedbackFreq)){
       readSensorBox();          // Read the sensors from the sensor box
-      outputData();             // Send data to the PC
-      //Print_Data2Console();     // Print the data to console (also on the PC)
+      //outputData();             // Send data to the PC
+      Print_Data2Console();     // Print the data to console (also on the PC)
       
       feedbackTime = 0;
     } 
     
-  stp = micros();               // Measure the current time 
+  stp = micros();               // Measure the current time   
 }
+
+// FUNCTION : Reads the IR Temperature Sensor; Note: This is special for the Arduino DUE
+float readIRThermometer()
+{
+  uint16_t tempUK;
+  float tempC;
+  uint8_t hB, lB, pec;
+
+  digitalWrite(SYNC_PIN, HIGH);
+  //delayMicroseconds(10);
+  digitalWrite(SYNC_PIN, LOW);
+
+  TWI_StartRead(pTwi, ADDR, TOBJ_1, 1);
+
+  lB = readByte();
+  hB = readByte();
+  
+  //last read
+  TWI_SendSTOPCondition(pTwi);
+  pec = readByte();
+  
+  while (!TWI_TransferComplete(pTwi)) 
+    ;
+
+  tempUK = (hB << 8) | lB;
+  tempC = ((float)tempUK * 2) / 100 - 273.15 ;
+  
+  return tempC; 
+}
+
 
 // FUNCTION : Reads the sensors from the sensor box
 void readSensorBox(){
-      fTemperature_Value = mlx.readObjectTempC();                 // Temperature
+      fTemperature_Value = readIRThermometer();                   // Temperature
       fMAX_Assistance_Force = analogRead(Potentiometer_Pin)/100;  // Assistance Force / Potentiometer  
-      fGSR_Value = analogRead(GSR_Pin);                           // GSR 
+      fGSR_Value = analogRead(GSR_Pin);                           // GSR       
 }
 
 // FUNCTION : Runs an admittance control scheme and sets the respective motor position
@@ -251,11 +306,83 @@ void Print_Data2Console()
     Serial.println(printout);   
 }
 
-/*
-    double A[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    double k = 4;
-    double n = 10;
-    double SG[10];
+// Funtions for communication with the IR Thermometer //
+static void Wire_Init(void) {
+  pmc_enable_periph_clk(WIRE_INTERFACE_ID);
+  PIO_Configure(
+  g_APinDescription[PIN_WIRE_SDA].pPort,
+  g_APinDescription[PIN_WIRE_SDA].ulPinType,
+  g_APinDescription[PIN_WIRE_SDA].ulPin,
+  g_APinDescription[PIN_WIRE_SDA].ulPinConfiguration);
+  PIO_Configure(
+  g_APinDescription[PIN_WIRE_SCL].pPort,
+  g_APinDescription[PIN_WIRE_SCL].ulPinType,
+  g_APinDescription[PIN_WIRE_SCL].ulPin,
+  g_APinDescription[PIN_WIRE_SCL].ulPinConfiguration);
 
-    psgolayp(A, k, n, SG);  
-    */
+  NVIC_DisableIRQ(TWI1_IRQn);
+  NVIC_ClearPendingIRQ(TWI1_IRQn);
+  NVIC_SetPriority(TWI1_IRQn, 0);
+  NVIC_EnableIRQ(TWI1_IRQn);
+}
+
+static void Wire1_Init(void) {
+    pmc_enable_periph_clk(WIRE1_INTERFACE_ID);
+  PIO_Configure(
+      g_APinDescription[PIN_WIRE1_SDA].pPort,
+      g_APinDescription[PIN_WIRE1_SDA].ulPinType,
+      g_APinDescription[PIN_WIRE1_SDA].ulPin,
+      g_APinDescription[PIN_WIRE1_SDA].ulPinConfiguration);
+  PIO_Configure(
+      g_APinDescription[PIN_WIRE1_SCL].pPort,
+      g_APinDescription[PIN_WIRE1_SCL].ulPinType,
+      g_APinDescription[PIN_WIRE1_SCL].ulPin,
+      g_APinDescription[PIN_WIRE1_SCL].ulPinConfiguration);
+
+  NVIC_DisableIRQ(TWI0_IRQn);
+  NVIC_ClearPendingIRQ(TWI0_IRQn);
+  NVIC_SetPriority(TWI0_IRQn, 0);
+  NVIC_EnableIRQ(TWI0_IRQn);
+}
+
+uint8_t readByte() {
+  //TWI_WaitByteReceived(pTwi, RECV_TIMEOUT);
+  while (!TWI_ByteReceived(pTwi))
+    ;
+  return TWI_ReadByte(pTwi);
+}
+
+static inline bool TWI_WaitTransferComplete(Twi *_twi, uint32_t _timeout) {
+  while (!TWI_TransferComplete(_twi)) {
+    if (TWI_FailedAcknowledge(_twi))
+      return false;
+    if (--_timeout == 0)
+      return false;
+  }
+  return true;
+}
+
+static inline bool TWI_WaitByteReceived(Twi *_twi, uint32_t _timeout) {
+  while (!TWI_ByteReceived(_twi)) {
+    if (TWI_FailedAcknowledge(_twi))
+      return false;
+    if (--_timeout == 0)
+      return false;
+  }
+  return true;
+}
+
+static inline bool TWI_FailedAcknowledge(Twi *pTwi) {
+  return pTwi->TWI_SR & TWI_SR_NACK;
+}
+
+
+
+
+
+
+
+
+
+
+
