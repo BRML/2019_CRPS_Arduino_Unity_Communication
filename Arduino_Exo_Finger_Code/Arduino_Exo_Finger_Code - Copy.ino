@@ -16,7 +16,7 @@ double damping = 1000.0;            // [N*s/m] Virtual damping of the admittance
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
-float MAX_RANGE = 0.05 ;           // Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
+float MAX_RANGE = 0.05 ;           //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
 float MAX_FORCE = 0;             // Maximum force of the motors (can be modified from Unity3D)
 
 // Pins on the Arduino //
@@ -50,6 +50,7 @@ double Force_Force_Sensor[4];                           // Measured force from t
 // Sensor box variables //
 float fMAX_Assistance_Force = 0;       // [N] Maximum assistance force, set by the potentiometer    
 float fGSR_Value = 0;                 // [] Value of the GSR
+int sensorValue=0;
 float fTemperature_Value = 0;         // [C] Measured Temperature
 
 // Communication variables //
@@ -72,7 +73,7 @@ void setup() {
   
   //Attach servos
   for(int iJoints = 0; iJoints<4; iJoints++){
-    Motor[iJoints].attach(Motor_Pin[iJoints]);
+    Motor[iJoints].attach(Motor_Pin[iJoints]);  
     Motor[iJoints].writeMicroseconds(1000);
   }
 
@@ -138,8 +139,20 @@ void loop() {
 void readSensorBox(){
       fTemperature_Value = mlx.readObjectTempC();                 // Temperature
       fMAX_Assistance_Force = analogRead(Potentiometer_Pin)/200;  // Assistance Force / Potentiometer  changed from 100 to 200 so F assistive max is 5N
-      fGSR_Value = analogRead(GSR_Pin);                           // GSR 
+      
+      
+      //fGSR_Value = analogRead(GSR_Pin);                           // GSR 
+        long sum=0;
+        for(int i=0;i<10;i++)           //Average the 10 measurements to remove the glitch
+        {
+        sensorValue=analogRead(GSR_Pin);
+        sum += sensorValue;
+        }
+   fGSR_Value = sum/10;
+   //fGSR_Value = ((1024+2*(fGSR_Value-(992-512)))*10000)/(512-(fGSR_Value-(992-512)));
 }
+//Human Resistance = ((1024+2*Serial_Port_Reading)*10000)/(512-Serial_Port_Reading),
+//unit is ohm, Serial_Port_Reading is the value display on Serial Port(between 0~1023)
 
 // FUNCTION : Runs an admittance control scheme and sets the respective motor position
 void Admittance_Control(double Force_Sensor, double Assistive_Force, int num) 
@@ -241,6 +254,7 @@ void outputData(){
   for(int iJoints = 0; iJoints<4; iJoints++){
     addOutString(Force_Force_Sensor[iJoints]);
   }
+  printout = String();
   printout = fTemperature_Value;
   printout += ",";
   printout += fGSR_Value;
