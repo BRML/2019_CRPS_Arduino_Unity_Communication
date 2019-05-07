@@ -4,7 +4,7 @@
 #include "Wire.h"
 #include "Adafruit_MLX90614.h"
 
-#define MAX_VEL 0.2              // [m/s] Maximum velocity of the motors; 0,4 normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
+#define MAX_VEL 0.2              // [m/s] Maximum velocity of the motors; 0,04normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
 #define MAX_ACC 0.5              // [m/s^2] Maximum acceleration of the motors; 1 normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
 #define MIN_SIGNAL_DURATION 1000 // [microseconds]
 #define MAX_SIGNAL_OFFSET 1000   // [microseconds]
