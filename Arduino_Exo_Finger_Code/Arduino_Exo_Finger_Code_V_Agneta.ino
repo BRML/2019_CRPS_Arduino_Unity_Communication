@@ -16,7 +16,7 @@ double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
 float MAX_RANGE = 0.5;           // Maximum positon of the motors (can be modified from Unity3D)
-float MAX_FORCE = 0;             // Maximum force of the motors (can be modified from Unity3D)
+float MAX_FORCE = 0;             // Maximum force of the motors (can be modified from Unity3D); female human hand can grasp up to 240 N in power grasp, normal contact grasp force at finger tip 1-4N
 
 // Pins on the Arduino //
 int Motor_Pin[4] = {2,3,4,5};                           // Arduino Pins for the motors
