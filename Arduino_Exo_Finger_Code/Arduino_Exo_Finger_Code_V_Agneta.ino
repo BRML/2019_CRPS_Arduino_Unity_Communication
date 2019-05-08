@@ -218,13 +218,13 @@ void addOutString(float inp){
 
 // FUNCTION : Sends data via the serial port
 void outputData(){
-  addOutString(fTemperature_Value);
-  addOutString(fGSR_Value);
-  addOutString(fMAX_Assistance_Force);
-  //addOutString(5);
-  for(int iJoints = 0; iJoints<4; iJoints++){
-    addOutString(Force_Force_Sensor[iJoints]);
-  }
+//  addOutString(fTemperature_Value);
+//  addOutString(fGSR_Value);
+//  addOutString(fMAX_Assistance_Force);
+//  //addOutString(5);
+//  for(int iJoints = 0; iJoints<4; iJoints++){
+//    addOutString(Force_Force_Sensor[iJoints]);
+//  }
   printout = String();
   printout = fTemperature_Value;
   printout += ",";
