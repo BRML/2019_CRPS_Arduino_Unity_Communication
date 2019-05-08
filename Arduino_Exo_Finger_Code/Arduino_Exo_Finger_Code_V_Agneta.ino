@@ -53,7 +53,7 @@ float fTemperature_Value = 0;         // [C] Measured Temperature
 
 // Communication variables //
 float timestep = 0;                   // [s] Time for one iteration of the main loop
-float feedbackFreq = 4;               // [1/s] Data is sent to the PC this many times per seconds
+float feedbackFreq = 1;               // [1/s] Data is sent to the PC this many times per seconds
 float feedbackTime = 0;               // [s] Time since the last feedback was sent to the PC
 double start = 0;                     // [s] Measures the time instant for the start of each iteration
 double stp = 0;                       // [s] Measures the time instand for the end of each iteration
@@ -118,8 +118,8 @@ void loop() {
     // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
     if (feedbackTime>(1/feedbackFreq)){
       readSensorBox();          // Read the sensors from the sensor box
-      //outputData();             // Send data to the PC
-      Print_Data2Console();     // Print the data to console (also on the PC)
+      outputData();             // Send data to the PC
+      //Print_Data2Console();     // Print the data to console (also on the PC)
       
       feedbackTime = 0;
     } 
@@ -169,26 +169,30 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 // FUNCTION : Generates an assistive force, when position thresholds are reached by the operator of the exoskeleton
 void Generate_Assistive_Force(double x_a, double x_b, int num)       
 {
-     if( (x_a > Assistive_Force[num].Threshold_Position * MAX_RANGE || x_b > Assistive_Force[num].Threshold_Position * MAX_RANGE) && Assistive_Force[num].Direction == 0.5 )
-        Assistive_Force[num].Direction = 1;
-    
-     if( (x_a < (1-Assistive_Force[num].Threshold_Position) * MAX_RANGE || x_b < (1-Assistive_Force[num].Threshold_Position) * MAX_RANGE) && Assistive_Force[num].Direction == -0.5 ) 
-        Assistive_Force[num].Direction = -1;
-    
-     if(x_a == MAX_RANGE && x_b == MAX_RANGE && Assistive_Force[num].Direction == 1) 
-        Assistive_Force[num].Direction = -0.5; 
-      
-     if (x_a == MIN_RANGE && x_b == MAX_RANGE && Assistive_Force[num].Direction == -1)
-        Assistive_Force[num].Direction = 0.5; 
-    
-     if(Assistive_Force[num].Force_Level < fMAX_Assistance_Force  && Assistive_Force[num].Direction ==  1)
-        Assistive_Force[num].Force_Level = Assistive_Force[num].Force_Level + 0.001;
-    
-     if(Assistive_Force[num].Force_Level > -fMAX_Assistance_Force && Assistive_Force[num].Direction == -1)
-        Assistive_Force[num].Force_Level = Assistive_Force[num].Force_Level - 0.001;
-    
-     if(Assistive_Force[num].Direction == 0.5 || Assistive_Force[num].Direction == -0.5)
-        Assistive_Force[num].Force_Level = 0;
+  if (Force_Force_Sensor[num]>0)
+     Assistive_Force[num].Force_Level = fMAX_Assistance_Force;
+  if (Force_Force_Sensor[num]<0)
+    Assistive_Force[num].Force_Level = -fMAX_Assistance_Force;
+//     if( x_a > (MIN_RANGE+Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == 0.5 )
+//        Assistive_Force[num].Direction = 1;
+//    
+//     if( x_a < (MAX_RANGE-Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == -0.5 ) 
+//        Assistive_Force[num].Direction = -1;
+//    
+//     if(x_a > (MAX_RANGE-Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == 1) 
+//        Assistive_Force[num].Direction = -0.5; 
+//      
+//     if (x_a < (MIN_RANGE+Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == -1)
+//        Assistive_Force[num].Direction = 0.5; 
+//    
+//     if(Assistive_Force[num].Force_Level < fMAX_Assistance_Force  && Assistive_Force[num].Direction ==  1)
+//        Assistive_Force[num].Force_Level = fMAX_Assistance_Force;//Assistive_Force[num].Force_Level + 0.001;
+//    
+//     if(Assistive_Force[num].Force_Level > -fMAX_Assistance_Force && Assistive_Force[num].Direction == -1)
+//        Assistive_Force[num].Force_Level = -fMAX_Assistance_Force;//Assistive_Force[num].Force_Level - 0.001;
+//    
+//     if(Assistive_Force[num].Direction == 0.5 || Assistive_Force[num].Direction == -0.5)
+//        Assistive_Force[num].Force_Level = 0;
 }
     
 // FUNCTION : After starting the serial connection all the settings are read in from Unity3D
@@ -221,9 +225,25 @@ void outputData(){
   for(int iJoints = 0; iJoints<4; iJoints++){
     addOutString(Force_Force_Sensor[iJoints]);
   }
+  printout = String();
+  printout = fTemperature_Value;
+  printout += ",";
+  printout += fGSR_Value;
+  printout += ",";
+  printout += fMAX_Assistance_Force;
+  printout += ",";
+  printout += Force_Force_Sensor[0];
+  printout += ",";
+  printout += Force_Force_Sensor[1];
+  printout += ",";
+  printout += Force_Force_Sensor[2];
+  printout += ",";
+  printout += Force_Force_Sensor[3];
+  printout += ",";
   Serial.flush();
-  Serial.println(outString);
-  outString = "";
+  Serial.println(printout);
+  //Serial.println(outString);
+  //outString = "";
 }
 
 // FUNCTION : Prints data to console
