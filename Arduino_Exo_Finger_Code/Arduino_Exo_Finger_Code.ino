@@ -1,24 +1,23 @@
 #include <Servo.h>
 #include <math.h>
-#include <Filters.h>
+//#include <Filters.h>
 #include "Wire.h"
 #include "Adafruit_MLX90614.h"
-//#include "psgolayp/psgolayp.h"
 
-#define MAX_VEL 0.2              // [m/s] Maximum velocity of the motors
-#define MAX_ACC 0.5              // [m/s^2] Maximum acceleration of the motors
+#define MAX_LENGTH 0.05          // [m] Maximum stroke of the motors
+#define MAX_VEL 0.04              // [m/s] Maximum velocity of the motors; 0,04normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
+#define MAX_ACC 0.5              // [m/s^2] Maximum acceleration of the motors; 1 normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
 #define MIN_SIGNAL_DURATION 1000 // [microseconds]
 #define MAX_SIGNAL_OFFSET 1000   // [microseconds]
 
 // Physical contraints //
 double mass = 5;                 // [kg]  Virtual mass of the admittance control scheme
-double damping = 10.0;            // [N*s/m] Virtual damping of the admittance control scheme
+double damping = 1000.0;            // [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
-float MAX_RANGE = 0.5;           // Maximum positon of the motors (can be modified from Unity3D)
+float MAX_RANGE = 0.05 ;           //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
 float MAX_FORCE = 0;             // Maximum force of the motors (can be modified from Unity3D)
-
 // Pins on the Arduino //
 int Motor_Pin[4] = {2,3,4,5};                           // Arduino Pins for the motors
 int Force_Sensor_Pin[4] = {A0, A1, A3, A2};             // Arduino Pins for the force sensors
@@ -37,7 +36,7 @@ struct s_Assistive_Force         // Struct that stores information about the ass
 {
   double Force_Level = 0;        // [N] Current force level
   double Direction = 0.5;        // [] Direction flag of the assistive force
-  double Threshold_Position = 0.15; // [] Relative threshold position from lower and upper end of the range of the motor
+  double Threshold_Position = 0.2*(MAX_RANGE-MIN_RANGE); // [] Relative threshold position from lower and upper end of the range of the motor
 };
 
 struct s_Assistive_Force Assistive_Force[4];            // Assistive forces for all joints
@@ -48,13 +47,14 @@ double Calib_Force_Sensor[4] = {-1.47, -1.45, -1.54, -1.54}; // Measured calibra
 double Force_Force_Sensor[4];                           // Measured force from the force sensors
 
 // Sensor box variables //
-float fMAX_Assistance_Force = 0;      // [N] Maximum assistance force, set by the potentiometer    
+float fMAX_Assistance_Force = 0;       // [N] Maximum assistance force, set by the potentiometer    
 float fGSR_Value = 0;                 // [] Value of the GSR
+int sensorValue=0;
 float fTemperature_Value = 0;         // [C] Measured Temperature
 
 // Communication variables //
 float timestep = 0;                   // [s] Time for one iteration of the main loop
-float feedbackFreq = 4;               // [1/s] Data is sent to the PC this many times per seconds
+float feedbackFreq = 1;               // [1/s] Data is sent to the PC this many times per seconds; Unity reads once per second
 float feedbackTime = 0;               // [s] Time since the last feedback was sent to the PC
 double start = 0;                     // [s] Measures the time instant for the start of each iteration
 double stp = 0;                       // [s] Measures the time instand for the end of each iteration
@@ -62,9 +62,6 @@ String outString;                     // [] The string to be sent to the PC
 String printout;                      // [] The string to be sent to the Console
 
 Adafruit_MLX90614 mlx;                // Set up IR Thermometer
-
-// create a one pole (RC) lowpass filter
-//FilterOnePole lowpassFilter( LOWPASS, 500 ); 
 
 // SETUP ROUTINE //
 void setup() {
@@ -100,27 +97,36 @@ void loop() {
   
     // Read force sensors
     for(int iJoints = 0; iJoints<4; iJoints++){
-      Force_Force_Sensor[iJoints] = ((analogRead(Force_Sensor_Pin[iJoints])) 
+      Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints]) 
                                     - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;  
     } 
+   
+    //    // Generate an assistive force; here, the force is the same for each finger       // Generate an assistive force; here, the force is the same for each finger 
+//    Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0);          Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0);    
+//    Assistive_Force[1] = Assistive_Force[0];      Assistive_Force[1] = Assistive_Force[0];
+//    Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);          Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);    
+//    Assistive_Force[3] = Assistive_Force[2];      Assistive_Force[3] = Assistive_Force[2];
 
-    // Generate an assistive force; here, the force is the same for all the joints of each finger 
-    Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0);    
-    Assistive_Force[1] = Assistive_Force[0];
-    Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);    
-    Assistive_Force[3] = Assistive_Force[2];
+   // Generate an assistive force; here, the force is the same for each finger  
+      Generate_Assistive_Force(Kinetics[0].x, 0);     
+      Generate_Assistive_Force(Kinetics[1].x, 1); 
+      Generate_Assistive_Force(Kinetics[2].x, 2);     
+      Generate_Assistive_Force(Kinetics[3].x, 3);
 
-    // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move unisono
-    Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[0].Force_Level, 0);
-    Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);
-    Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[2].Force_Level, 2);
-    Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);
-    
+    // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move synchron
+   // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[0].Force_Level, 0);
+   // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);
+    Admittance_Control(Force_Force_Sensor[0] , Assistive_Force[0].Force_Level, 0);
+    Admittance_Control(Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);
+   //   Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[2].Force_Level, 2);
+   //   Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);
+        Admittance_Control(Force_Force_Sensor[2], Assistive_Force[2].Force_Level, 2);
+    Admittance_Control(Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);
     // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
     if (feedbackTime>(1/feedbackFreq)){
       readSensorBox();          // Read the sensors from the sensor box
-      outputData();             // Send data to the PC
-      //Print_Data2Console();     // Print the data to console (also on the PC)
+      outputData();             // Send data for UNity
+      //Print_Data2Console();     // Print the data to console on Laptop
       
       feedbackTime = 0;
     } 
@@ -131,15 +137,32 @@ void loop() {
 // FUNCTION : Reads the sensors from the sensor box
 void readSensorBox(){
       fTemperature_Value = mlx.readObjectTempC();                 // Temperature
-      fMAX_Assistance_Force = analogRead(Potentiometer_Pin)/100;  // Assistance Force / Potentiometer  
-      fGSR_Value = analogRead(GSR_Pin);                           // GSR 
+      fMAX_Assistance_Force = analogRead(Potentiometer_Pin)/200;  // Assistance Force / Potentiometer  changed from 100 to 200 so F assistive max is 5N
+
+       //fGSR_Value = analogRead(GSR_Pin);                           // GSR   
+        long sum=0; 
+        for(int i=0;i<10;i++)           //Average the 10 measurements to remove the glitch  
+        { 
+        sensorValue=analogRead(GSR_Pin);  
+        sum += sensorValue; 
+        } 
+   fGSR_Value = sum/10; 
+   //fGSR_Value = ((1024+2*(fGSR_Value-(992-512)))*10000)/(512-(fGSR_Value-(992-512)));
+   //Human Resistance = ((1024+2*Serial_Port_Reading)*10000)/(512-Serial_Port_Reading), 
+//unit is ohm, Serial_Port_Reading is the value display on Serial Port(between 0~1023)
 }
 
 // FUNCTION : Runs an admittance control scheme and sets the respective motor position
 void Admittance_Control(double Force_Sensor, double Assistive_Force, int num) 
-{
+{double Force;
     // Admittance control basic equation: F = m*ddx + d*dx
-    Kinetics[num].ddx = 1/mass * (Force_Sensor + Assistive_Force - damping * Kinetics[num].dx);
+    if(Force_Sensor<1.3) {
+      Force=Force_Sensor;//0;
+      } else {
+        Force=Force_Sensor;
+        }
+    
+    Kinetics[num].ddx = 1/mass * (Force + Assistive_Force - damping * Kinetics[num].dx);
 
     // Delimit the acceleration
     if(Kinetics[num].ddx < -MAX_ACC) Kinetics[num].ddx = -MAX_ACC;
@@ -158,36 +181,36 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
     if(Kinetics[num].x < MIN_RANGE) Kinetics[num].x = MIN_RANGE;
     if(Kinetics[num].x > MAX_RANGE) Kinetics[num].x = MAX_RANGE;
 
-    // Set the motor position
-    Motor[num].writeMicroseconds( Kinetics[num].x / MAX_RANGE * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
+    Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
 }
 
 // FUNCTION : Generates an assistive force, when position thresholds are reached by the operator of the exoskeleton
-void Generate_Assistive_Force(double x_a, double x_b, int num)       
+void Generate_Assistive_Force(double x_a, int num)       
 {
-     if( (x_a > Assistive_Force[num].Threshold_Position * MAX_RANGE || x_b > Assistive_Force[num].Threshold_Position * MAX_RANGE) && Assistive_Force[num].Direction == 0.5 )
-        Assistive_Force[num].Direction = 1;       // Assistive Force pushing forward
-    
-     if( (x_a < (1-Assistive_Force[num].Threshold_Position) * MAX_RANGE || x_b < (1-Assistive_Force[num].Threshold_Position) * MAX_RANGE) && Assistive_Force[num].Direction == -0.5 ) 
-        Assistive_Force[num].Direction = -1;      // Assistive Force pushing backward
-    
-     if(x_a == MAX_RANGE && x_b == MAX_RANGE && Assistive_Force[num].Direction == 1) 
-        Assistive_Force[num].Direction = -0.5;    // Assistive Force ready to push backward
-      
-     if (x_a == MIN_RANGE && x_b == MIN_RANGE && Assistive_Force[num].Direction == -1)
-        Assistive_Force[num].Direction = 0.5;     // Assistive Force ready to push forward
-    
-     if(Assistive_Force[num].Force_Level < fMAX_Assistance_Force && Assistive_Force[num].Direction ==  1)
-        Assistive_Force[num].Force_Level = Assistive_Force[num].Force_Level + 0.001;  // Assistive Force Level incremented to push further forward
-    
-     if(Assistive_Force[num].Force_Level > -fMAX_Assistance_Force && Assistive_Force[num].Direction == -1)
-        Assistive_Force[num].Force_Level = Assistive_Force[num].Force_Level - 0.001;  // Assistive Force Level incremented to push further backward
-    
-     if(Assistive_Force[num].Direction == 0.5 || Assistive_Force[num].Direction == -0.5)
-        Assistive_Force[num].Force_Level = 0;                                         // Assistive Force Level set to zero
-
-     if(fMAX_Assistance_Force ==  0)      // Emergency shut off
-        Assistive_Force[num].Force_Level = 0;   
+  if (Force_Force_Sensor[num]>0.5)
+     Assistive_Force[num].Force_Level = fMAX_Assistance_Force*2;
+  if (Force_Force_Sensor[num]<-0.5)
+    Assistive_Force[num].Force_Level = -fMAX_Assistance_Force*2;
+//     if( x_a > (MIN_RANGE+Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == 0.5 )
+//        Assistive_Force[num].Direction = 1;
+//    
+//     if( x_a < (MAX_RANGE-Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == -0.5 ) 
+//        Assistive_Force[num].Direction = -1;
+//    
+//     if(x_a > (MAX_RANGE-Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == 1) 
+//        Assistive_Force[num].Direction = -0.5; 
+//      
+//     if (x_a < (MIN_RANGE+Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == -1)
+//        Assistive_Force[num].Direction = 0.5; 
+//    
+//     if(Assistive_Force[num].Force_Level < fMAX_Assistance_Force  && Assistive_Force[num].Direction ==  1)
+//        Assistive_Force[num].Force_Level = fMAX_Assistance_Force;//Assistive_Force[num].Force_Level + 0.001;
+//    
+//     if(Assistive_Force[num].Force_Level > -fMAX_Assistance_Force && Assistive_Force[num].Direction == -1)
+//        Assistive_Force[num].Force_Level = -fMAX_Assistance_Force;//Assistive_Force[num].Force_Level - 0.001;
+//    
+//     if(Assistive_Force[num].Direction == 0.5 || Assistive_Force[num].Direction == -0.5)
+//        Assistive_Force[num].Force_Level = 0;
 }
     
 // FUNCTION : After starting the serial connection all the settings are read in from Unity3D
@@ -201,7 +224,7 @@ void setValues(){
   MAX_RANGE = Serial.parseFloat();
   MAX_FORCE = Serial.parseFloat();
   
-  Serial.flush();
+  //Serial.flush();
 }
 
 // FUNCTION : Extends the string to be sent via the serial port
@@ -213,49 +236,63 @@ void addOutString(float inp){
 
 // FUNCTION : Sends data via the serial port
 void outputData(){
-  addOutString(fTemperature_Value);
-  addOutString(fGSR_Value);
-  addOutString(fMAX_Assistance_Force);
-  for(int iJoints = 0; iJoints<4; iJoints++){
-    addOutString(Force_Force_Sensor[iJoints]);
-  }
+//  addOutString(fTemperature_Value);
+//  addOutString(fGSR_Value);
+//  addOutString(fMAX_Assistance_Force);
+//  //addOutString(5);
+//  for(int iJoints = 0; iJoints<4; iJoints++){
+//    addOutString(Force_Force_Sensor[iJoints]);
+//  }
+  printout = String();
+  printout = fTemperature_Value;
+  printout += ",";
+  printout += fGSR_Value;
+  printout += ",";
+  printout += fMAX_Assistance_Force;
+  printout += ",";
+  printout += Force_Force_Sensor[0];
+  printout += ",";
+  printout += Force_Force_Sensor[1];
+  printout += ",";
+  printout += Force_Force_Sensor[2];
+  printout += ",";
+  printout += Force_Force_Sensor[3];
+  printout += ",";
   Serial.flush();
-  Serial.println(outString);
-  outString = "";
+  Serial.println(printout);
+  //Serial.println(outString);
+  //outString = "";
 }
 
 // FUNCTION : Prints data to console
 void Print_Data2Console()
 {
-    printout = "Force Sensor 1: ";
+    printout = "F1[N]: ";
     printout += Force_Force_Sensor[0];
-    printout += " N, Force Sensor 2: ";
+    printout += " , F2[N]: ";
     printout += Force_Force_Sensor[1];
-    printout += " N, Force Sensor 3: ";
-    printout += Force_Force_Sensor[2];
-    printout += " N, Force Sensor 4: ";
-    printout += Force_Force_Sensor[3];
-    printout += " N, Assistive Force :";
-    printout += fMAX_Assistance_Force;
-    printout += " N, GSR:";
-    printout += fGSR_Value;
-    printout += " [], Thermometer:";
-    printout += fTemperature_Value;
-    printout += " C, Timestep:";
+  //  printout += " , F3: ";
+  //  printout += Force_Force_Sensor[2];
+  //  printout += " , F4: ";
+  //  printout += Force_Force_Sensor[3];
+    printout += " , FAssist[N] :";
+    printout += Assistive_Force[0].Force_Level;
+    printout += ", FassDir:"; 
+    printout += Assistive_Force[0].Direction; 
+  //  printout += " , GSR:";
+  //  printout += fGSR_Value;
+  //  printout += " , T[C]:";
+  //  printout += fTemperature_Value;
+    printout += " , dt[ms]:";
     printout += timestep * 1000;
-    printout += " ms, Feedbacktime ";
+    printout += " , tloop[ms] ";
     printout += feedbackTime;
-    printout += " s, Assistive Force Level ";
-    printout +=  Assistive_Force[0].Force_Level;
-   
+   // printout += " , Acc:";
+   //printout += Kinetics[0].ddx;
+   // printout += ", Vel:";
+   // printout += Kinetics[0].dx;
+    printout += ", X[mm]:"; 
+    printout += Kinetics[0].x*100; 
+    Serial.flush(); 
     Serial.println(printout);   
 }
-
-/*
-    double A[10] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
-    double k = 4;
-    double n = 10;
-    double SG[10];
-
-    psgolayp(A, k, n, SG);  
-    */
