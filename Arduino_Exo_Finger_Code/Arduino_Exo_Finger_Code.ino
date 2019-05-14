@@ -11,8 +11,8 @@
 #define MAX_SIGNAL_OFFSET 1000   // [microseconds]
 
 // Physical contraints //
-double mass = 5;                 // [kg]  Virtual mass of the admittance control scheme
-double damping = 1000.0;            // [N*s/m] Virtual damping of the admittance control scheme
+double mass = 2;                 // [kg]  Virtual mass of the admittance control scheme
+double damping = 2000.0;            // [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
@@ -68,7 +68,7 @@ void setup() {
   Serial.begin(9600);                 // Start Serial Communication and set Analog reference 
   mlx.begin();                        // Start IR Thermometer readouts
   analogReference(INTERNAL2V56);      // Set the internal reference of the Arduino to 2.56V (necessary for the force sensors)
-  //setValues();                        // Obtain Settings for all the joints from Unity3D           
+  setValues();                        // Obtain Settings for all the joints from Unity3D           
   
   //Attach servos
   for(int iJoints = 0; iJoints<4; iJoints++){
@@ -97,6 +97,7 @@ void loop() {
   
     // Read force sensors
     for(int iJoints = 0; iJoints<4; iJoints++){
+
       Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints]) 
                                     - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;  
     } 
@@ -188,9 +189,9 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 void Generate_Assistive_Force(double x_a, int num)       
 {
   if (Force_Force_Sensor[num]>0.5)
-     Assistive_Force[num].Force_Level = fMAX_Assistance_Force*2;
+     Assistive_Force[num].Force_Level = fMAX_Assistance_Force*3;
   if (Force_Force_Sensor[num]<-0.5)
-    Assistive_Force[num].Force_Level = -fMAX_Assistance_Force*2;
+    Assistive_Force[num].Force_Level = -fMAX_Assistance_Force*3;
 //     if( x_a > (MIN_RANGE+Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == 0.5 )
 //        Assistive_Force[num].Direction = 1;
 //    
@@ -215,27 +216,27 @@ void Generate_Assistive_Force(double x_a, int num)
     
 // FUNCTION : After starting the serial connection all the settings are read in from Unity3D
 void setValues(){
-    
-  while(Serial.available()<=0){}      // Wait for the serial connection to become available
-
-  // Read general Settings
-  feedbackFreq = Serial.parseFloat();
-  MIN_RANGE = Serial.parseFloat(); 
-  MAX_RANGE = Serial.parseFloat();
-  MAX_FORCE = Serial.parseFloat();
-  
-  //Serial.flush();
+//    
+//  while(Serial.available()<=0){}      // Wait for the serial connection to become available
+//
+//  // Read general Settings
+//  feedbackFreq = Serial.parseFloat();
+//  MIN_RANGE = Serial.parseFloat(); 
+//  MAX_RANGE = Serial.parseFloat();
+//  MAX_FORCE = Serial.parseFloat();
+//  
+//  Serial.flush();
 }
 
-// FUNCTION : Extends the string to be sent via the serial port
-void addOutString(float inp){
-  String addString = String(inp);     
-  addString = String(addString + ",");
-  outString = String(outString + addString);
-}
+//// FUNCTION : Extends the string to be sent via the serial port
+//void addOutString(float inp){
+//  String addString = String(inp);     
+//  addString = String(addString + ",");
+//  outString = String(outString + addString);
+//}
 
 // FUNCTION : Sends data via the serial port
-void outputData(){
+void outputData(){ 
 //  addOutString(fTemperature_Value);
 //  addOutString(fGSR_Value);
 //  addOutString(fMAX_Assistance_Force);
