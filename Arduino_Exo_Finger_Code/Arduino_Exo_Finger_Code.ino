@@ -1,22 +1,22 @@
-#include <Servo.h>
+ #include <Servo.h>
 #include <math.h>
 //#include <Filters.h>
 #include "Wire.h"
 #include "Adafruit_MLX90614.h"
 
 #define MAX_LENGTH 0.05          // [m] Maximum stroke of the motors
-#define MAX_VEL 0.04              // [m/s] Maximum velocity of the motors; 0,04normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
+#define MAX_VEL 0.04             // [m/s] Maximum velocity of the motors; 0,04normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
 #define MAX_ACC 0.5              // [m/s^2] Maximum acceleration of the motors; 1 normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
 #define MIN_SIGNAL_DURATION 1000 // [microseconds]
 #define MAX_SIGNAL_OFFSET 1000   // [microseconds]
 
 // Physical contraints //
 double mass = 2;                 // [kg]  Virtual mass of the admittance control scheme
-double damping = 2000.0;            // [N*s/m] Virtual damping of the admittance control scheme
+double damping = 1000.0;         // [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
-float MAX_RANGE = 0.05 ;           //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
+float MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
 float MAX_FORCE = 0;             // Maximum force of the motors (can be modified from Unity3D)
 // Pins on the Arduino //
 int Motor_Pin[4] = {2,3,4,5};                           // Arduino Pins for the motors
@@ -137,10 +137,11 @@ void loop() {
 
 // FUNCTION : Reads the sensors from the sensor box
 void readSensorBox(){
+  int scale_force = 200,
       fTemperature_Value = mlx.readObjectTempC();                 // Temperature
-      fMAX_Assistance_Force = analogRead(Potentiometer_Pin)/200;  // Assistance Force / Potentiometer  changed from 100 to 200 so F assistive max is 5N
-
-       //fGSR_Value = analogRead(GSR_Pin);                           // GSR   
+      fMAX_Assistance_Force = analogRead(Potentiometer_Pin)/scale_force;  //0-1000Ohm Assistance Force / Potentiometer  changed from 100 to 200 so F assistive max is 5N
+      damping = 1000 + analogRead(Potentiometer_Pin)*scale_force/200;     // adapts the damping to the additional force in the system
+       //fGSR_Value = analogRead(GSR_Pin);                           // GSR - sweat sensor - resistance  
         long sum=0; 
         for(int i=0;i<10;i++)           //Average the 10 measurements to remove the glitch  
         { 
@@ -187,7 +188,7 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 
 // FUNCTION : Generates an assistive force, when position thresholds are reached by the operator of the exoskeleton
 void Generate_Assistive_Force(double x_a, int num)       
-{
+{ 
   if (Force_Force_Sensor[num]>0.5)
      Assistive_Force[num].Force_Level = fMAX_Assistance_Force*3;
   if (Force_Force_Sensor[num]<-0.5)
