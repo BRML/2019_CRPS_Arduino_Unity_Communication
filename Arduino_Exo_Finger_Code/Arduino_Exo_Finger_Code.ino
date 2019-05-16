@@ -126,7 +126,7 @@ void loop() {
     // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
     if (feedbackTime>(1/feedbackFreq)){
       readSensorBox();          // Read the sensors from the sensor box
-      outputData();             // Send data for UNity
+      outputData();             // Send data for Unity
       //Print_Data2Console();     // Print the data to console on Laptop
       
       feedbackTime = 0;
@@ -217,6 +217,27 @@ void Generate_Assistive_Force(double x_a, int num)
     
 // FUNCTION : After starting the serial connection all the settings are read in from Unity3D
 void setValues(){
+  char rc;
+  char tempChars[32];        // temporary array for use by strtok() function
+  rc = Serial.read();
+ 
+    // split the data into its parts
+  strcpy(tempChars, rc);
+  char *strtokIndx; // this is used by strtok() as an index
+
+  strtokIndx = strtok(tempChars,",");      // get the first part - the string
+  feedbackFreq = atof(strtokIndx); // copy it to feedbackFreq
+
+  strtokIndx = strtok(NULL, ","); // this continues where the previous call left off
+  MIN_RANGE = atof(strtokIndx)/90*0.05;     // convert this part to a float & 90deg to 0.05m on the motors
+  
+  strtokIndx = strtok(NULL, ",");
+  MAX_RANGE = atof(strtokIndx)/90*0.05;     // convert this part to a float & 90deg to 0.05m on the motors
+
+  strtokIndx = strtok(NULL, ",");
+  MAX_FORCE = atof(strtokIndx);     // convert this part to a float 
+
+//   ------------------------------------------
 //    
 //  while(Serial.available()<=0){}      // Wait for the serial connection to become available
 //
@@ -240,7 +261,7 @@ void setValues(){
 void outputData(){ 
 //  addOutString(fTemperature_Value);
 //  addOutString(fGSR_Value);
-//  addOutString(fMAX_Assistance_Force);
+//  addOutString (fMAX_Assistance_Force);
 //  //addOutString(5);
 //  for(int iJoints = 0; iJoints<4; iJoints++){
 //    addOutString(Force_Force_Sensor[iJoints]);
@@ -250,7 +271,7 @@ void outputData(){
   printout += ",";
   printout += fGSR_Value;
   printout += ",";
-  printout += fMAX_Assistance_Force;
+  printout += MAX_RANGE; //fMAX_Assistance_Force;
   printout += ",";
   printout += Force_Force_Sensor[0];
   printout += ",";
