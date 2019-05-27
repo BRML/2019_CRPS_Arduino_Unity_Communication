@@ -160,11 +160,11 @@ void loop() {
 // ------------------------------FUNCTIONS--------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void minHandler (const char *command) {
-  MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH
+  MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
 }
 
 void maxHandler (const char *command) {
-  MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH
+  MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
 }
 
 // FUNCTION : After starting the serial connection read the settings done by therapeut from Unity3D
