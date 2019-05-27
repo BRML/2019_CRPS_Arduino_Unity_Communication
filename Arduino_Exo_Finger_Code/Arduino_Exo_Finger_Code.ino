@@ -275,10 +275,10 @@ void outputData() {
   printout += ",";
   printout += Force_Force_Sensor[3];
   printout += ",";
-  printout += MAX_RANGE; //debug
-  printout += ",";
-  printout += MIN_RANGE; //debug
-  printout += ",";
+//  printout += MAX_RANGE; //debug
+//  printout += ",";
+//  printout += MIN_RANGE; //debug
+//  printout += ",";
   Serial.flush();
   Serial.println(printout);
 }
