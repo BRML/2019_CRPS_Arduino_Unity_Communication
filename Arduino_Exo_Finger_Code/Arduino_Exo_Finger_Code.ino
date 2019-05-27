@@ -18,7 +18,7 @@ using namespace std;
 SerialCommand sCmd;
 // Physical contraints //
 double mass = 2;                 // [kg]  Virtual mass of the admittance control scheme
-double damping = 1000.0;         // [N*s/m] Virtual damping of the admittance control scheme
+double damping = 100.0;         //1000 [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
@@ -80,7 +80,8 @@ void setup() {
   Serial.begin(9600);                 // Start Serial Communication and set Analog reference
   //-------------
   while (!Serial);
-  sCmd.addCommand("PING", pingHandler);
+  sCmd.addCommand("I", minHandler);
+  sCmd.addCommand("A", maxHandler);
   //-------------
   mlx.begin();                        // Start IR Thermometer readouts
   analogReference(INTERNAL2V56);      // Set the internal reference of the Arduino to 2.56V (necessary for the force sensors)
@@ -109,10 +110,7 @@ void setup() {
 
 //// MAIN LOOP ////
 void loop() {
-  //---------------
-  //Serial.println("here");
   if (Serial.available() > 0)
-    Serial.println("next");
     sCmd.readSerial();
   //-----------
   timestep = (stp - start) / 1000000; // [s] Calculate the timestep for the last iteration
@@ -125,28 +123,29 @@ void loop() {
     Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints])
                                    - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
   }
-
-  //    // Generate an assistive force; here, the force is the same for each finger       // Generate an assistive force; here, the force is the same for each finger
-  //    Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0);          Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0);
-  //    Assistive_Force[1] = Assistive_Force[0];      Assistive_Force[1] = Assistive_Force[0];
-  //    Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);          Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);
-  //    Assistive_Force[3] = Assistive_Force[2];      Assistive_Force[3] = Assistive_Force[2];
-
+       
   // Generate an assistive force; here, the force is the same for each finger
+  //    Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0);   
+  //    Assistive_Force[1] = Assistive_Force[0];   
+  //    Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);  
+  //    Assistive_Force[3] = Assistive_Force[2];   
+  
+  // Generate an assistive force
   Generate_Assistive_Force(Kinetics[0].x, 0);
   Generate_Assistive_Force(Kinetics[1].x, 1);
   Generate_Assistive_Force(Kinetics[2].x, 2);
   Generate_Assistive_Force(Kinetics[3].x, 3);
 
   // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move synchron
-  // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[0].Force_Level, 0);
-  // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);
   Admittance_Control(Force_Force_Sensor[0] , Assistive_Force[0].Force_Level, 0);
-  Admittance_Control(Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);
+  Admittance_Control(Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);  
+  Admittance_Control(Force_Force_Sensor[2], Assistive_Force[2].Force_Level, 2);
+  Admittance_Control(Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);  
+  // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);
+  // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[0].Force_Level, 0);
   //   Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[2].Force_Level, 2);
   //   Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);
-  Admittance_Control(Force_Force_Sensor[2], Assistive_Force[2].Force_Level, 2);
-  Admittance_Control(Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);
+
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
   if (feedbackTime > (1 / feedbackFreq)) {
     readSensorBox();          // Read the sensors from the sensor box
@@ -160,69 +159,18 @@ void loop() {
 //------------------------------------------------------------------------------------------------
 // ------------------------------FUNCTIONS--------------------------------------------------------
 //------------------------------------------------------------------------------------------------
-void pingHandler (const char *command) {
-  Serial.println("PONG");
+void minHandler (const char *command) {
+  MIN_RANGE = Serial.parseFloat()\90*MAX_LENGTH
+}
+
+void maxHandler (const char *command) {
+  MAX_RANGE = Serial.parseFloat()\90*MAX_LENGTH
 }
 
 // FUNCTION : After starting the serial connection read the settings done by therapeut from Unity3D
 void setValues() {
-  //  //char rc[35];
-  //  //rc = Serial.readString();
-  ////----std::string::c_str().
-  ////  std::string rc = Serial.readString();
-  ////  char *tempChars = new char[rc.length() + 1];
-  ////  strcpy(tempChars, rc.c_str());
-  //// or in modern c++
-  ////  std::vector<char> tempChars(rc.c_str(), rc.c_str() + rc.size() + 1);
-  ////-----
-  //  char rc;
-  //  rc = Serial.read();
-  //  char tempChars[35];        // temporary array for use by strtok() function
-  //  // split the data into its parts
-  //  strcpy(tempChars, rc);
-  ////----
-  //  char *strtokIndx; // this is used by strtok() as an index
-  //
-  //  strtokIndx = strtok(tempChars,",");      // get the first part - the string
-  //  feedbackFreq = atof(strtokIndx); // copy it to feedbackFreq
-  //
-  //  strtokIndx = strtok(NULL, ","); // this continues where the previous call left off
-  //  MIN_RANGE = atof(strtokIndx)/90*0.05;     // convert this part to a float & 90deg to 0.05m on the motors
-  //
-  //  strtokIndx = strtok(NULL, ",");
-  //  MAX_RANGE = atof(strtokIndx)/90*0.05;     // convert this part to a float & 90deg to 0.05m on the motors
-  //
-  //  strtokIndx = strtok(NULL, ",");
-  //  MAX_FORCE = atof(strtokIndx);     // convert this part to a float
-  //   ------------------------------------------
-  Serial.println("I am in ");
-  test = Serial.read();
-  // say what you got:
-  Serial.print("I received: ");
-  Serial.println(test, DEC); // -1 means no serial connection established
-  //test = Serial.parseFloat();
-  
-  // serial connection is on:
-  if (Serial.available() > 0) {
-    // read the incoming byte:
-    incomingByte = Serial.read();
-    // say what you got:
-    Serial.print("I received: ");
-    Serial.println(incomingByte, DEC);
-  }
-
-  while (Serial.available() > 0) {
-    Serial.println("I am listning");
-    MAX_RANGE = Serial.parseFloat();
-  }
-  //  while(Serial.available()<=0){}      // Do nothing until  serial connection is established
-  //
-  //  // Read general Settings
-  //  feedbackFreq = Serial.parseFloat(); // 1 dataset from unity to arduino
-  //  MIN_RANGE = Serial.parseFloat(); // 0-90 deg
-  //  MAX_RANGE = Serial.parseFloat(); // 0-90 deg
-  //  MAX_FORCE = Serial.parseFloat();
-  //  Serial.flush();
+  if (Serial.available() > 0)
+      sCmd.readSerial();
 }
 //--END OF CONSTRUCTION SITE---------------------
 
@@ -315,12 +263,9 @@ void outputData() {
   printout = String();
   printout = fTemperature_Value;
   printout += ",";
-  printout += "'";
-  printout += test;
-  printout += "'";
   printout += fGSR_Value;
   printout += ",";
-  printout += MAX_RANGE; //fMAX_Assistance_Force;
+  printout += fMAX_Assistance_Force;
   printout += ",";
   printout += Force_Force_Sensor[0];
   printout += ",";
@@ -329,6 +274,10 @@ void outputData() {
   printout += Force_Force_Sensor[2];
   printout += ",";
   printout += Force_Force_Sensor[3];
+  printout += ",";
+  printout += MAX_RANGE; //debug
+  printout += ",";
+  printout += MIN_RANGE; //debug
   printout += ",";
   Serial.flush();
   Serial.println(printout);
