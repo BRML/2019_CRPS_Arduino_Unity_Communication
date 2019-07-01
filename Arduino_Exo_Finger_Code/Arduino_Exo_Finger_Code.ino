@@ -17,8 +17,8 @@ using namespace std;
 
 SerialCommand sCmd;
 // Physical contraints //
-double mass = 2;                 // [kg]  Virtual mass of the admittance control scheme
-double damping = 100.0;         //1000 [N*s/m] Virtual damping of the admittance control scheme
+double mass = 5;                 // [kg]  Virtual mass of the admittance control scheme
+double damping = 1000.0;         //1000 [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
@@ -182,7 +182,7 @@ void readSensorBox() {
   //0-1000Ohm Assistance Force / Potentiometer  changed from 100 to 200 so F assistive max is 5N
   fMAX_Assistance_Force = analogRead(Potentiometer_Pin) / scale_force;
   // adapts the damping to the additional force in the system
-  damping = 1000 + analogRead(Potentiometer_Pin) * scale_force / 200;
+  damping = 1000 + analogRead(Potentiometer_Pin) * scale_force / 10;
   // GSR - sweat sensor - resistance
   //fGSR_Value = analogRead(GSR_Pin);
   long sum = 0;
