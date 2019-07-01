@@ -182,7 +182,9 @@ void readSensorBox() {
   //0-1000Ohm Assistance Force / Potentiometer  changed from 100 to 200 so F assistive max is 5N
   fMAX_Assistance_Force = analogRead(Potentiometer_Pin) / scale_force;
   // adapts the damping to the additional force in the system
-  damping = 1000 + analogRead(Potentiometer_Pin) * scale_force / 10;
+  damping = 1000 + analogRead(Potentiometer_Pin)/ scale_force * 300;
+  //vs. 1000 + analogRead(Potentiometer_Pin)* scale_force / 10; poti high fine poti 0 too much damping
+  
   // GSR - sweat sensor - resistance
   //fGSR_Value = analogRead(GSR_Pin);
   long sum = 0;
