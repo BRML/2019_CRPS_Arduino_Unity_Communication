@@ -57,6 +57,9 @@ double Force_Force_Sensor[4];                           // Measured force from t
 float fMAX_Assistance_Force = 0;       // [N] Maximum assistance force, set by the potentiometer
 float fGSR_Value = 0;                 // [] Value of the GSR
 int sensorValue = 0;
+// low pass filter variables
+float EMA_a = 0.7;    //initialization of EMA alpha (cutoff-frequency)
+int EMA_S[4] = {0, 0, 0, 0}; ;        //initialization of EMA S
 float fTemperature_Value = 0;         // [C] Measured Temperature
 
 // Communication variables //
@@ -122,14 +125,16 @@ void loop() {
 
     Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints])
                                    - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
+EMA_S[iJoints] = (EMA_a*Force_Force_Sensor[iJoints]) + ((1-EMA_a)*EMA_S[iJoints]);  //run the EMA
+// Force_Force_Sensor[iJoints] = EMA_S[iJoints];// changes in admittance control to EMA_S input
   }
-       
+
   // Generate an assistive force; here, the force is the same for each finger
-  //    Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0);   
-  //    Assistive_Force[1] = Assistive_Force[0];   
-  //    Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);  
-  //    Assistive_Force[3] = Assistive_Force[2];   
-  
+  //    Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0); 
+  //    Assistive_Force[1] = Assistive_Force[0]; 
+  //    Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);
+  //    Assistive_Force[3] = Assistive_Force[2]; 
+
   // Generate an assistive force
   Generate_Assistive_Force(Kinetics[0].x, 0);
   Generate_Assistive_Force(Kinetics[1].x, 1);
@@ -137,10 +142,10 @@ void loop() {
   Generate_Assistive_Force(Kinetics[3].x, 3);
 
   // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move synchron
-  Admittance_Control(Force_Force_Sensor[0] , Assistive_Force[0].Force_Level, 0);
-  Admittance_Control(Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);  
-  Admittance_Control(Force_Force_Sensor[2], Assistive_Force[2].Force_Level, 2);
-  Admittance_Control(Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);  
+  Admittance_Control(EMA_S[0] , Assistive_Force[0].Force_Level, 0);
+  Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
+  Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
+  Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
   // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);
   // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[0].Force_Level, 0);
   //   Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[2].Force_Level, 2);
@@ -184,7 +189,7 @@ void readSensorBox() {
   // adapts the damping to the additional force in the system
   damping = 1000 + analogRead(Potentiometer_Pin)/ scale_force * 300;
   //vs. 1000 + analogRead(Potentiometer_Pin)* scale_force / 10; poti high fine poti 0 too much damping
-  
+
   // GSR - sweat sensor - resistance
   //fGSR_Value = analogRead(GSR_Pin);
   long sum = 0;
