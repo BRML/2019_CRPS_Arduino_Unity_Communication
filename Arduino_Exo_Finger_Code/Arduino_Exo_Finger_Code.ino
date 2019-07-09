@@ -59,7 +59,7 @@ float fGSR_Value = 0;                 // [] Value of the GSR
 int sensorValue = 0;
 // low pass filter variables
 float EMA_a = 0.7;    //initialization of EMA alpha (cutoff-frequency)
-int EMA_S[4] = {0, 0, 0, 0}; ;        //initialization of EMA S
+float EMA_S[4] = {0, 0, 0, 0}; ;        //initialization of EMA S
 float fTemperature_Value = 0;         // [C] Measured Temperature
 
 // Communication variables //
