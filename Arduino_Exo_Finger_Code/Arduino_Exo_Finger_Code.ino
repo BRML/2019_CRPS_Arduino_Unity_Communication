@@ -125,15 +125,8 @@ void loop() {
 
     Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints])
                                    - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
-EMA_S[iJoints] = (EMA_a*Force_Force_Sensor[iJoints]) + ((1-EMA_a)*EMA_S[iJoints]);  //run the EMA
-// Force_Force_Sensor[iJoints] = EMA_S[iJoints];// changes in admittance control to EMA_S input
+    EMA_S[iJoints] = (EMA_a*Force_Force_Sensor[iJoints]) + ((1-EMA_a)*EMA_S[iJoints]);  //run the EMA
   }
-
-  // Generate an assistive force; here, the force is the same for each finger
-  //    Generate_Assistive_Force(Kinetics[0].x, Kinetics[1].x, 0); 
-  //    Assistive_Force[1] = Assistive_Force[0]; 
-  //    Generate_Assistive_Force(Kinetics[2].x, Kinetics[3].x, 2);
-  //    Assistive_Force[3] = Assistive_Force[2]; 
 
   // Generate an assistive force
   Generate_Assistive_Force(Kinetics[0].x, 0);
@@ -146,16 +139,12 @@ EMA_S[iJoints] = (EMA_a*Force_Force_Sensor[iJoints]) + ((1-EMA_a)*EMA_S[iJoints]
   Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
   Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
   Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
-  // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[1].Force_Level, 1);
-  // Admittance_Control(Force_Force_Sensor[0] + Force_Force_Sensor[1], Assistive_Force[0].Force_Level, 0);
-  //   Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[2].Force_Level, 2);
-  //   Admittance_Control(Force_Force_Sensor[2] + Force_Force_Sensor[3], Assistive_Force[3].Force_Level, 3);
-
+ 
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
   if (feedbackTime > (1 / feedbackFreq)) {
     readSensorBox();          // Read the sensors from the sensor box
-    outputData();             // Send data for Unity
-    //Print_Data2Console();     // Print the data to console on Laptop
+    //outputData();             // Send data for Unity
+    Print_Data2Console();     // Print the data to console on Laptop
     feedbackTime = 0;
   }
 
@@ -191,7 +180,6 @@ void readSensorBox() {
   //vs. 1000 + analogRead(Potentiometer_Pin)* scale_force / 10; poti high fine poti 0 too much damping
 
   // GSR - sweat sensor - resistance
-  //fGSR_Value = analogRead(GSR_Pin);
   long sum = 0;
   for (int i = 0; i < 10; i++)    //Average the 10 measurements to remove the glitch
   {
@@ -208,8 +196,8 @@ void readSensorBox() {
 void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 { double Force;
   // Admittance control basic equation: F = m*ddx + d*dx
-  if (Force_Sensor < 1.3) {
-    Force = Force_Sensor; //0;
+  if (Force_Sensor < 0.5 && Force_Sensor > -0.5) {
+    Force =  0;
   } else {
     Force = Force_Sensor;
   }
@@ -243,26 +231,7 @@ void Generate_Assistive_Force(double x_a, int num)
     Assistive_Force[num].Force_Level = fMAX_Assistance_Force * 3;
   if (Force_Force_Sensor[num] < -0.5)
     Assistive_Force[num].Force_Level = -fMAX_Assistance_Force * 3;
-  //     if( x_a > (MIN_RANGE+Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == 0.5 )
-  //        Assistive_Force[num].Direction = 1;
-  //
-  //     if( x_a < (MAX_RANGE-Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == -0.5 )
-  //        Assistive_Force[num].Direction = -1;
-  //
-  //     if(x_a > (MAX_RANGE-Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == 1)
-  //        Assistive_Force[num].Direction = -0.5;
-  //
-  //     if (x_a < (MIN_RANGE+Assistive_Force[num].Threshold_Position) && Assistive_Force[num].Direction == -1)
-  //        Assistive_Force[num].Direction = 0.5;
-  //
-  //     if(Assistive_Force[num].Force_Level < fMAX_Assistance_Force  && Assistive_Force[num].Direction ==  1)
-  //        Assistive_Force[num].Force_Level = fMAX_Assistance_Force;//Assistive_Force[num].Force_Level + 0.001;
-  //
-  //     if(Assistive_Force[num].Force_Level > -fMAX_Assistance_Force && Assistive_Force[num].Direction == -1)
-  //        Assistive_Force[num].Force_Level = -fMAX_Assistance_Force;//Assistive_Force[num].Force_Level - 0.001;
-  //
-  //     if(Assistive_Force[num].Direction == 0.5 || Assistive_Force[num].Direction == -0.5)
-  //        Assistive_Force[num].Force_Level = 0;
+  
 }
 
 // FUNCTION : Sends data via the serial port
@@ -282,10 +251,6 @@ void outputData() {
   printout += ",";
   printout += Force_Force_Sensor[3];
   printout += ",";
-//  printout += MAX_RANGE; //debug
-//  printout += ",";
-//  printout += MIN_RANGE; //debug
-//  printout += ",";
   Serial.flush();
   Serial.println(printout);
 }
@@ -295,30 +260,30 @@ void Print_Data2Console()
 {
   printout = "F1[N]: ";
   printout += Force_Force_Sensor[0];
-  printout += " , F2[N]: ";
-  printout += Force_Force_Sensor[1];
+  printout += " , EMA_S[N]: ";
+  printout += EMA_S[0];
   //  printout += " , F3: ";
   //  printout += Force_Force_Sensor[2];
   //  printout += " , F4: ";
   //  printout += Force_Force_Sensor[3];
   printout += " , FAssist[N] :";
   printout += Assistive_Force[0].Force_Level;
-  printout += ", FassDir:";
-  printout += Assistive_Force[0].Direction;
+  //printout += ", FassDir:";
+  //printout += Assistive_Force[0].Direction;
   //  printout += " , GSR:";
   //  printout += fGSR_Value;
   //  printout += " , T[C]:";
   //  printout += fTemperature_Value;
-  printout += " , dt[ms]:";
-  printout += timestep * 1000;
-  printout += " , tloop[ms] ";
-  printout += feedbackTime;
+  //printout += " , dt[ms]:";
+  //printout += timestep * 1000;
+  //printout += " , tloop[ms] ";
+  //printout += feedbackTime;
   // printout += " , Acc:";
   //printout += Kinetics[0].ddx;
   // printout += ", Vel:";
   // printout += Kinetics[0].dx;
-  printout += ", X[mm]:";
-  printout += Kinetics[0].x * 100;
+  //printout += ", X[mm]:";
+  //printout += Kinetics[0].x * 100;
   Serial.flush();
   Serial.println(printout);
 }
