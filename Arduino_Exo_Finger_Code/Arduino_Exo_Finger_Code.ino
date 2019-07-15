@@ -58,7 +58,7 @@ float fMAX_Assistance_Force = 0;       // [N] Maximum assistance force, set by t
 float fGSR_Value = 0;                 // [] Value of the GSR
 int sensorValue = 0;
 // low pass filter variables
-float EMA_a = 0.7;    //initialization of EMA alpha (cutoff-frequency)
+float EMA_a = 0.4;    //initialization of EMA alpha (cutoff-frequency)
 float EMA_S[4] = {0, 0, 0, 0}; ;        //initialization of EMA S
 float fTemperature_Value = 0;         // [C] Measured Temperature
 
@@ -125,7 +125,7 @@ void loop() {
 
     Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints])
                                    - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
-    EMA_S[iJoints] = (EMA_a*Force_Force_Sensor[iJoints]) + ((1-EMA_a)*EMA_S[iJoints]);  //run the EMA
+    EMA_S[iJoints] = (EMA_a*Force_Force_Sensor[iJoints]) + ((1-EMA_a)*EMA_S[iJoints]);  //run the EMA 
   }
 
   // Generate an assistive force
