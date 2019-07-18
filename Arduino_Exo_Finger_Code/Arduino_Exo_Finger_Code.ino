@@ -17,7 +17,7 @@ using namespace std;
 
 SerialCommand sCmd;
 // Physical contraints //
-double mass = 5;                 // [kg]  Virtual mass of the admittance control scheme
+double mass = 2;                 // [kg]  Virtual mass of the admittance control scheme
 double damping = 1000.0;         //1000 [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
@@ -173,10 +173,10 @@ void readSensorBox() {
   int scale_force = 200,
   // Temperature
   fTemperature_Value = mlx.readObjectTempC();
-  //0-1000Ohm Assistance Force / Potentiometer  changed from 100 to 200 so F assistive max is 5N
+  //0-1000Ohm Assistance Force / Potentiometer  changed from 100 to 200 so F assistive max is 15N
   fMAX_Assistance_Force = analogRead(Potentiometer_Pin) / scale_force;
   // adapts the damping to the additional force in the system
-  damping = 1000 + analogRead(Potentiometer_Pin)/ scale_force * 300;
+  damping = 1000 + (analogRead(Potentiometer_Pin)/ scale_force) * 1000;
   //vs. 1000 + analogRead(Potentiometer_Pin)* scale_force / 10; poti high fine poti 0 too much damping
 
   // GSR - sweat sensor - resistance
@@ -199,10 +199,11 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
   if (Force_Sensor < 0.5 && Force_Sensor > -0.5) {
     Force =  0;
   } else {
-    Force = Force_Sensor;
+    Force = Force_Sensor + Assistive_Force;
   }
 
-  Kinetics[num].ddx = 1 / mass * (Force + Assistive_Force - damping * Kinetics[num].dx);
+  Kinetics[num].ddx = 1 / mass * (Force  - damping * Kinetics[num].dx);
+//Kinetics[num].ddx = 1 / mass * (Force + Assistive_Force - damping * Kinetics[num].dx);
 
   // Delimit the acceleration
   if (Kinetics[num].ddx < -MAX_ACC) Kinetics[num].ddx = -MAX_ACC;
