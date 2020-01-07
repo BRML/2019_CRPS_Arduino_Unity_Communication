@@ -19,8 +19,8 @@ using namespace std;
 
 SerialCommand sCmd;
 // Physical contraints //
-double mass = 2;                 // [kg]  Virtual mass of the admittance control scheme
-double damping = 1000.0;         //1000 [N*s/m] Virtual damping of the admittance control scheme
+double mass = 1;                 //1 [kg]  Virtual mass of the admittance control scheme (otherwise motor drives continuesly back, does not hold a position)
+double damping = 100.0;         //100 [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
 float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
@@ -142,6 +142,7 @@ void loop() {
   Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
   Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
   Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
+  
  
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
   if (feedbackTime > (1 / feedbackFreq)) {
@@ -234,9 +235,9 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 void Generate_Assistive_Force(double x_a, int num)
 {
   if (Force_Force_Sensor[num] > 0.5)
-    Assistive_Force[num].Force_Level = fMAX_Assistance_Force * 3;
+    Assistive_Force[num].Force_Level = fMAX_Assistance_Force * 10; //3,  with 10 the reaction of the system is much better and quicker 
   if (Force_Force_Sensor[num] < -0.5)
-    Assistive_Force[num].Force_Level = -fMAX_Assistance_Force * 3;
+    Assistive_Force[num].Force_Level = -fMAX_Assistance_Force * 10;
   
 }
 
@@ -257,6 +258,7 @@ void outputData() {
   printout += ",";
   printout += Force_Force_Sensor[3];
   printout += ",";
+  printout += Assistive_Force[0].Force_Level; //test output assistance force
   Serial.flush();
   Serial.println(printout);
 }
