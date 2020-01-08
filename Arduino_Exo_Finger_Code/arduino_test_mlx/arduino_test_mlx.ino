@@ -105,7 +105,7 @@ void setup() {
   for (int iJoints = 0; iJoints < 4; iJoints++) {
     Motor[iJoints].attach(Motor_Pin[iJoints]);
     //  Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
-    //Motor[iJoints].writeMicroseconds(1000);
+    Motor[iJoints].writeMicroseconds(1000);
   }
 
 //  //read the last motor position and write it to the data
