@@ -1,5 +1,9 @@
+#include <EEPROMex.h>
+#include <EEPROMVar.h>
+
 #include <Servo.h>
 #include <math.h>
+//#include <EEPROMEx.h> //EEPROM write read
 //#include <Filters.h>
 //#include <Wire.h>
 //#include <Adafruit_MLX90614.h>
@@ -16,6 +20,10 @@ using namespace std;
 #define MAX_ACC 0.5              // [m/s^2] Maximum acceleration of the motors; 1 normal "CAPTURING HUMAN HAND KINEMATICS FOR OBJECT GRASPING AND MANIPULATION A Thesis by SHRAMANA GHOSH "
 #define MIN_SIGNAL_DURATION 1000 // [microseconds]
 #define MAX_SIGNAL_OFFSET 1000   // [microseconds]
+
+//bugfix for the reset of the arduino at every game start from Unity
+int addr0 = 0;
+double value;
 
 SerialCommand sCmd;
 // Physical contraints //
@@ -96,8 +104,16 @@ void setup() {
   //Attach servos
   for (int iJoints = 0; iJoints < 4; iJoints++) {
     Motor[iJoints].attach(Motor_Pin[iJoints]);
-    Motor[iJoints].writeMicroseconds(1000);
+    //  Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
+    //Motor[iJoints].writeMicroseconds(1000);
   }
+
+//  //read the last motor position and write it to the data
+//  Serial.print(Kinetics[0].x);
+//  Serial.println();
+//  Kinetics[0].x = EEPROM.readDouble(addr0);
+//  Serial.print(Kinetics[0].x);
+//  Serial.println();
 
   // Calculate offset of force sensors
   for (int i = 0; i < 5000; i++) {
@@ -150,9 +166,12 @@ void loop() {
     outputData();             // Send data for Unity
     //Print_Data2Console();     // Print the data to console on Laptop
     feedbackTime = 0;
+   // EEPROM.writeDouble(addr0, Kinetics[0].x); //read current motor position and store it on the EEPROM
+
   }
 
   stp = micros();               // Measure the current time
+  
 }
 //------------------------------------------------------------------------------------------------
 // ------------------------------FUNCTIONS--------------------------------------------------------
