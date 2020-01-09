@@ -27,7 +27,7 @@ double value;
 
 SerialCommand sCmd;
 // Physical contraints //
-double mass = 1;                 //1 [kg]  Virtual mass of the admittance control scheme (otherwise motor drives continuesly back, does not hold a position)
+double mass = 1;                 //1 [kg]  Virtual mass of the admittance control scheme (otherwise motor drives continuously back, does not hold a position)
 double damping = 100.0;         //100 [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
@@ -110,7 +110,7 @@ void setup() {
 
 //  //read the last motor position and write it to the data
 //  Serial.print(Kinetics[0].x);
-//  Serial.println();
+//  Serial.println(); 
 //  Kinetics[0].x = EEPROM.readDouble(addr0);
 //  Serial.print(Kinetics[0].x);
 //  Serial.println();
@@ -136,14 +136,23 @@ void loop() {
     sCmd.readSerial();
   //-----------
   timestep = (stp - start) / 1000000; // [s] Calculate the timestep for the last iteration
+  //Serial.print(timestep); Serial.println();
+
   feedbackTime += timestep;       // [s]Sum up the time since the last time data was sent to the PC
   start = micros();               // [mus] Measure the current time
 
   // Read force sensors
   for (int iJoints = 0; iJoints < 4; iJoints++) {
 
-    Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints])
+// original version without filter
+//    Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints])
+//                                   - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
+    // put low-pass filter on force
+
+    double filt = 0.9990;  // Set only between 1.0 and 0.0.  Higher value filters more. Set to 0.0 to get original, unfiltered version.
+    double f = (analogRead(Force_Sensor_Pin[iJoints])
                                    - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
+    Force_Force_Sensor[iJoints] = filt*Force_Force_Sensor[iJoints] + (1.0-filt)*f;          
     EMA_S[iJoints] = (EMA_a*Force_Force_Sensor[iJoints]) + ((1-EMA_a)*EMA_S[iJoints]);  //run the EMA 
   }
 
@@ -154,7 +163,7 @@ void loop() {
   Generate_Assistive_Force(Kinetics[3].x, 3);
 
   // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move synchron
-  Admittance_Control(EMA_S[0] , Assistive_Force[0].Force_Level, 0);
+  Admittance_Control(EMA_S[0], Assistive_Force[0].Force_Level, 0);
   Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
   Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
   Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
@@ -171,7 +180,7 @@ void loop() {
   }
 
   stp = micros();               // Measure the current time
-  
+
 }
 //------------------------------------------------------------------------------------------------
 // ------------------------------FUNCTIONS--------------------------------------------------------
@@ -221,11 +230,13 @@ void readSensorBox() {
 void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 { double Force;
   // Admittance control basic equation: F = m*ddx + d*dx
-  if (Force_Sensor < 0.5 && Force_Sensor > -0.5) {
-    Force =  0;
-  } else {
-    Force = Force_Sensor + Assistive_Force;
-  }
+//  if (fabs(Force_Sensor) < 0.0)
+//    Force = 0;
+//  else
+//    Force = Force_Sensor + Assistive_Force;
+  // smooth sigmoid 'step function' for cutting off low forces
+  Force = Force_Sensor + Assistive_Force;
+  Force = Force / (1. + exp(-10*(fabs(Force_Sensor) - 1)));
 
   Kinetics[num].ddx = 1 / mass * (Force  - damping * Kinetics[num].dx);
 //Kinetics[num].ddx = 1 / mass * (Force + Assistive_Force - damping * Kinetics[num].dx);
@@ -252,12 +263,11 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 
 // FUNCTION : Generates an assistive force, when position thresholds are reached by the operator of the exoskeleton
 void Generate_Assistive_Force(double x_a, int num)
-{
-  if (Force_Force_Sensor[num] > 0.5)
+{ 
+  if (Force_Force_Sensor[num] > 0.0)
     Assistive_Force[num].Force_Level = fMAX_Assistance_Force * 10; //3,  with 10 the reaction of the system is much better and quicker 
-  if (Force_Force_Sensor[num] < -0.5)
+  if (Force_Force_Sensor[num] < -0.0)
     Assistive_Force[num].Force_Level = -fMAX_Assistance_Force * 10;
-  
 }
 
 // FUNCTION : Sends data via the serial port
@@ -277,7 +287,7 @@ void outputData() {
   printout += ",";
   printout += Force_Force_Sensor[3];
   printout += ",";
-  printout += Assistive_Force[0].Force_Level; //test output assistance force
+  //printout += Assistive_Force[0].Force_Level; //test output assistance force
   Serial.flush();
   Serial.println(printout);
 }
