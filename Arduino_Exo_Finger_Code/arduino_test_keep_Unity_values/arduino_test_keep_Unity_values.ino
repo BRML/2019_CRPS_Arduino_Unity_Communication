@@ -208,10 +208,14 @@ void readUnityInput(){
      //  if(Serial.available()>0){  
             MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
             MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-            if (MIN_RANGE!= EEPROM.readDouble(addr0)){
-              EEPROM.writeDouble(addr0, MIN_RANGE);
+            if (MIN_RANGE*90*MAX_LENGTH == -1){
             }
-     //     }
+            else
+            {
+              if (MIN_RANGE!= EEPROM.readDouble(addr0)){
+                EEPROM.writeDouble(addr0, MIN_RANGE);
+              }
+            }
           Serial.flush();
         }
 
