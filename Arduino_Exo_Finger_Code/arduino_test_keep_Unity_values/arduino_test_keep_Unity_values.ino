@@ -114,17 +114,17 @@ void setup() {
   //Attach servos
   for (int iJoints = 0; iJoints < 4; iJoints++) {
     Motor[iJoints].attach(Motor_Pin[iJoints]);
-    Kinetics[0].x = EEPROM.readDouble(addr0);
+//    Kinetics[0].x = EEPROM.readDouble(addr0);
     Motor[iJoints].writeMicroseconds( Kinetics[iJoints].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
   //  Motor[iJoints].writeMicroseconds(1000);
   }
 
-//  //read the last motor position and write it to the data
+////  //read the last motor position and write it to the data
+////  Serial.print(Kinetics[0].x);
+////  Serial.println(); 
+//  Kinetics[0].x = EEPROM.readDouble(addr0);
 //  Serial.print(Kinetics[0].x);
-//  Serial.println(); 
-  Kinetics[0].x = EEPROM.readDouble(addr0);
-  Serial.print(Kinetics[0].x);
-  Serial.println();
+//  Serial.println();
 
   // Calculate offset of force sensors
   for (int i = 0; i < 5000; i++) {
@@ -206,8 +206,8 @@ void loop() {
 //------------------------------------------------------------------------------------------------
 void readUnityInput(){
      //  if(Serial.available()>0){  
-            MIN_RANGE = Serial.parseFloat();
-            MAX_RANGE = Serial.parseFloat();
+            MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
+            MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
      //     }
           Serial.flush();
         }
@@ -224,14 +224,12 @@ void maxHandler (const char *command) {
 // FUNCTION : After starting the serial connection read the settings done by therapeut from Unity3D
 void setValues() {
   if (Serial.available() > 0)
-      sCmd.readSerial();
+  //    sCmd.readSerial();
       // Read general Settings
-      MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH; 
-      MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-      Serial.flush();
-      Serial.print(MIN_RANGE);
-  Serial.println();
-      EEPROM.writeDouble(addr0, MIN_RANGE); //read current motor position and store it on the EEPROM
+      readUnityInput();
+//      Serial.print(MIN_RANGE);
+//  Serial.println();
+//      EEPROM.writeDouble(addr0, MIN_RANGE); //read current motor position and store it on the EEPROM
 }
 //--END OF CONSTRUCTION SITE---------------------
 
