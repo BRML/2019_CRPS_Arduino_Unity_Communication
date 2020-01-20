@@ -6,8 +6,8 @@
 #include <EEPROMStore.h>
 #include <Filter.h>
 
-#include <EEPROMex.h>
-#include <EEPROMVar.h>
+//#include <EEPROMex.h>
+//#include <EEPROMVar.h>
 
 #include <Servo.h>
 #include <math.h>
@@ -41,9 +41,14 @@ double mass = 1;                 //1 [kg]  Virtual mass of the admittance contro
 double damping = 100.0;         //100 [N*s/m] Virtual damping of the admittance control scheme
 double g = 0.00981;              // [N/g] Gravity
 
-float MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
-float MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
-float MAX_FORCE = 0;             // Maximum force of the motors (can be modified from Unity3D)
+// motor 1 and 4 (0 and 3 here)
+float MCP_MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
+float MCP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
+// mototr 2 and 3 (1 and 2 here)
+float PIP_MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
+float PIP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
+
+float MAX_FORCE = 0;             // Maximum force of the motors
 
 // Pins on the Arduino //
 int Motor_Pin[4] = {2, 3, 4, 5};                        // Arduino Pins for the motors
@@ -91,10 +96,10 @@ double stp = 0;                       // [s] Measures the time instand for the e
 String outString;                     // [] The string to be sent to the PC
 String printout;                      // [] The string to be sent to the Console
 
-//TEST VALUES-------------------------------------------------------------------
-int incomingByte = 0;   // for incoming serial data
-float test = 99;// TEST VALUE SERIAL READ
-//------------------------------------------------------------------------------
+////TEST VALUES-------------------------------------------------------------------
+//int incomingByte = 0;   // for incoming serial data
+//float test = 99;// TEST VALUE SERIAL READ
+////------------------------------------------------------------------------------
 
 //Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 Adafruit_MLX90614 mlx;                // Set up IR Thermometer
@@ -109,7 +114,7 @@ void setup() {
   //-------------
   mlx.begin();                        // Start IR Thermometer readouts
   analogReference(INTERNAL2V56);      // Set the internal reference of the Arduino to 2.56V (necessary for the force sensors)
-  setValues();                        // Obtain Settings for all the joints from Unity3D
+  readUnityInput(); //setValues();                        // Obtain Settings for all the joints from Unity3D
 
   //Attach servos
   for (int iJoints = 0; iJoints < 4; iJoints++) {
@@ -206,39 +211,43 @@ void loop() {
 //------------------------------------------------------------------------------------------------
 void readUnityInput(){
      //  if(Serial.available()>0){  
-            MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-            MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-            if (MIN_RANGE*90*MAX_LENGTH == -1){
-            }
-            else
-            {
-              if (MIN_RANGE!= EEPROM.readDouble(addr0)){
-                EEPROM.writeDouble(addr0, MIN_RANGE);
-              }
-            }
+            MCP_MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
+            MCP_MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
+            PIP_MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
+            PIP_MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
+            
+//// if the max min should be stored on the arduino, not tested!
+//            if (MIN_RANGE*90*MAX_LENGTH == -1){
+//            }
+//            else
+//            {
+//              if (MIN_RANGE!= EEPROM.readDouble(addr0)){
+//                EEPROM.writeDouble(addr0, MIN_RANGE);
+//              }
+//            }
           Serial.flush();
         }
 
 
-void minHandler (const char *command) {
-  MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-}
+//void minHandler (const char *command) {
+//  MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
+//}
+//
+//void maxHandler (const char *command) {
+//  MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
+//}
 
-void maxHandler (const char *command) {
-  MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-}
-
-// FUNCTION : After starting the serial connection read the settings done by therapeut from Unity3D
-void setValues() {
-  if (Serial.available() > 0){
-  //    sCmd.readSerial();
-      // Read general Settings
-      readUnityInput();
-  }
-//      Serial.print(MIN_RANGE);
-//  Serial.println();
-//      EEPROM.writeDouble(addr0, MIN_RANGE); //read current motor position and store it on the EEPROM
-}
+//// FUNCTION : After starting the serial connection read the settings done by therapeut from Unity3D
+//void setValues() {
+//  if (Serial.available() > 0){
+//  //    sCmd.readSerial();
+//      // Read general Settings
+//      readUnityInput();
+//  }
+////      Serial.print(MIN_RANGE);
+////  Serial.println();
+////      EEPROM.writeDouble(addr0, MIN_RANGE); //read current motor position and store it on the EEPROM
+//}
 //--END OF CONSTRUCTION SITE---------------------
 
 // FUNCTION : Reads the sensors from the sensor box
@@ -296,8 +305,14 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
   Kinetics[num].x = Kinetics[num].x + Kinetics[num].dx * timestep + 0.5 * Kinetics[num].ddx * timestep * timestep;
 
   // Delimit the positon
-  if (Kinetics[num].x < MIN_RANGE) Kinetics[num].x = MIN_RANGE;
-  if (Kinetics[num].x > MAX_RANGE) Kinetics[num].x = MAX_RANGE;
+  if (num == 0 || num == 3){ //MCP
+    if (Kinetics[num].x < MIN_RANGE) Kinetics[num].x = MCP_MIN_RANGE;
+    if (Kinetics[num].x > MAX_RANGE) Kinetics[num].x = MCP_MAX_RANGE;
+  }
+  else{//PIP and DIP
+    if (Kinetics[num].x < MIN_RANGE) Kinetics[num].x = PIP_MIN_RANGE;
+    if (Kinetics[num].x > MAX_RANGE) Kinetics[num].x = PIP_MAX_RANGE;
+    }
 
   Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
 }
