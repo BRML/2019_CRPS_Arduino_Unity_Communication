@@ -68,7 +68,7 @@ struct s_Assistive_Force         // Struct that stores information about the ass
 {
   double Force_Level = 0;        // [N] Current force level
   double Direction = 0.5;        // [] Direction flag of the assistive force
-  double Threshold_Position = 0.2 * (MAX_RANGE - MIN_RANGE); // [] Relative threshold position from lower and upper end of the range of the motor
+  double Threshold_Position = 0.2 * (MCP_MAX_RANGE - MCP_MIN_RANGE); // [] Relative threshold position from lower and upper end of the range of the motor
 };
 
 struct s_Assistive_Force Assistive_Force[4];            // Assistive forces for all joints
@@ -119,9 +119,9 @@ void setup() {
   //Attach servos
   for (int iJoints = 0; iJoints < 4; iJoints++) {
     Motor[iJoints].attach(Motor_Pin[iJoints]);
-    Kinetics[0].x = EEPROM.readDouble(addr0);
-    Motor[iJoints].writeMicroseconds( Kinetics[iJoints].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
-  //  Motor[iJoints].writeMicroseconds(1000);
+//    Kinetics[0].x = EEPROM.readDouble(addr0);
+//    Motor[iJoints].writeMicroseconds( Kinetics[iJoints].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
+    Motor[iJoints].writeMicroseconds(1500); // drive the motors to medium position
   }
 
 ////  //read the last motor position and write it to the data
@@ -306,12 +306,12 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 
   // Delimit the positon
   if (num == 0 || num == 3){ //MCP
-    if (Kinetics[num].x < MIN_RANGE) Kinetics[num].x = MCP_MIN_RANGE;
-    if (Kinetics[num].x > MAX_RANGE) Kinetics[num].x = MCP_MAX_RANGE;
+    if (Kinetics[num].x < MCP_MIN_RANGE) Kinetics[num].x = MCP_MIN_RANGE;
+    if (Kinetics[num].x > MCP_MAX_RANGE) Kinetics[num].x = MCP_MAX_RANGE;
   }
   else{//PIP and DIP
-    if (Kinetics[num].x < MIN_RANGE) Kinetics[num].x = PIP_MIN_RANGE;
-    if (Kinetics[num].x > MAX_RANGE) Kinetics[num].x = PIP_MAX_RANGE;
+    if (Kinetics[num].x < PIP_MIN_RANGE) Kinetics[num].x = PIP_MIN_RANGE;
+    if (Kinetics[num].x > PIP_MAX_RANGE) Kinetics[num].x = PIP_MAX_RANGE;
     }
 
   Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
