@@ -97,22 +97,12 @@ double stp = 0;                       // [s] Measures the time instand for the e
 String outString;                     // [] The string to be sent to the PC
 String printout;                      // [] The string to be sent to the Console
 
-////TEST VALUES-------------------------------------------------------------------
-//int incomingByte = 0;   // for incoming serial data
-//float test = 99;// TEST VALUE SERIAL READ
-////------------------------------------------------------------------------------
-
 //Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 Adafruit_MLX90614 mlx;                // Set up IR Thermometer
 
 // SETUP ROUTINE //
 void setup() {
   Serial.begin(9600);                 // Start Serial Communication and set Analog reference
-  //-------------
-//  while (!Serial);
-//  sCmd.addCommand("I", minHandler);
-//  sCmd.addCommand("A", maxHandler);
-  //-------------
   mlx.begin();                        // Start IR Thermometer readouts
   analogReference(INTERNAL2V56);      // Set the internal reference of the Arduino to 2.56V (necessary for the force sensors)
   readUnityInput(); //setValues();                        // Obtain Settings for all the joints from Unity3D
@@ -120,17 +110,8 @@ void setup() {
   //Attach servos
   for (int iJoints = 0; iJoints < 4; iJoints++) {
     Motor[iJoints].attach(Motor_Pin[iJoints]);
-//    Kinetics[0].x = EEPROM.readDouble(addr0);
-//    Motor[iJoints].writeMicroseconds( Kinetics[iJoints].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
     Motor[iJoints].writeMicroseconds(1000); // drive the motors to medium position
   }
-
-////  //read the last motor position and write it to the data
-////  Serial.print(Kinetics[0].x);
-////  Serial.println(); 
-//  Kinetics[0].x = EEPROM.readDouble(addr0);
-//  Serial.print(Kinetics[0].x);
-//  Serial.println();
 
   // Calculate offset of force sensors
   for (int i = 0; i < 5000; i++) {
@@ -150,15 +131,6 @@ void setup() {
 //// MAIN LOOP ////
 void loop() {
   if (Serial.available() > 0)
-  //  sCmd.readSerial();
-    //_____TEST___________below
-  //  while (!Serial);
-    
-//    SerialCommandHandler.AddVariable(F("MIN_RANGE"), MIN_RANGE);
-//  sCmd.addCommand("I", minHandler);
-//  sCmd.addCommand("A", maxHandler);
-  //______________________________
-  //-----------
   timestep = (stp - start) / 1000000; // [s] Calculate the timestep for the last iteration
   //Serial.print(timestep); Serial.println();
 
@@ -167,12 +139,6 @@ void loop() {
 
   // Read force sensors
   for (int iJoints = 0; iJoints < 4; iJoints++) {
-
-// original version without filter
-//    Force_Force_Sensor[iJoints] = (analogRead(Force_Sensor_Pin[iJoints])
-//                                   - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
-    // put low-pass filter on force
-
     double filt = 0.9990;  // Set only between 1.0 and 0.0.  Higher value filters more. Set to 0.0 to get original, unfiltered version.
     double f = (analogRead(Force_Sensor_Pin[iJoints])
                                    - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
@@ -186,18 +152,19 @@ void loop() {
   Generate_Assistive_Force(Kinetics[2].x, 2);
   Generate_Assistive_Force(Kinetics[3].x, 3);
 
-  if (control_mode ==1){
+  if (control_mode == 0){
     // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move synchron
     Admittance_Control(EMA_S[0], Assistive_Force[0].Force_Level, 0);
     Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
     Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
     Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
   }
-  else
-  Sin_feedforward(EMA_S[0], Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE);
-  Sin_feedforward(EMA_S[1], Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE);
-  Sin_feedforward(EMA_S[2], Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE);
-  Sin_feedforward(EMA_S[3], Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE);
+  else{
+    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE);
+    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE);
+    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE);
+    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE);
+  }
  
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
   if (feedbackTime > (1 / feedbackFreq)) {
@@ -206,7 +173,6 @@ void loop() {
     readUnityInput(); //read min max values from Unity
     //Print_Data2Console();     // Print the data to console on Laptop
     feedbackTime = 0;
-   // EEPROM.writeDouble(addr0, Kinetics[0].x); //read current motor position and store it on the EEPROM
 
   }
 
@@ -217,24 +183,15 @@ void loop() {
 // ------------------------------FUNCTIONS--------------------------------------------------------
 //------------------------------------------------------------------------------------------------
 void readUnityInput(){
-     //  if(Serial.available()>0){  
+       if(Serial.available()>0){  
             MCP_MIN_RANGE = (Serial.parseFloat()+10)/100*MAX_LENGTH;
             MCP_MAX_RANGE = (Serial.parseFloat()+10)/100*MAX_LENGTH;
             PIP_MIN_RANGE = (Serial.parseFloat()+10)/100*MAX_LENGTH;
             PIP_MAX_RANGE = (Serial.parseFloat()+10)/100*MAX_LENGTH;
             control_mode = Serial.parseFloat();
-            
-//// if the max min should be stored on the arduino, not tested!
-//            if (MIN_RANGE*90*MAX_LENGTH == -1){
-//            }
-//            else
-//            {
-//              if (MIN_RANGE!= EEPROM.readDouble(addr0)){
-//                EEPROM.writeDouble(addr0, MIN_RANGE);
-//              }
-//            }
-          Serial.flush();
-        }
+            Serial.flush();
+       }
+     }
 
 
 // FUNCTION : Reads the sensors from the sensor box
@@ -267,10 +224,6 @@ void readSensorBox() {
 void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 { double Force;
   // Admittance control basic equation: F = m*ddx + d*dx
-//  if (fabs(Force_Sensor) < 0.0)
-//    Force = 0;
-//  else
-//    Force = Force_Sensor + Assistive_Force;
   // smooth sigmoid 'step function' for cutting off low forces
   Force = Force_Sensor + Assistive_Force;
   Force = Force / (1. + exp(-10*(fabs(Force_Sensor) - 1)));
@@ -305,28 +258,13 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 }
 
 
-// FUNCTION : Runs afeedforward control sin wave to set the motor position
-void Sin_feedforward(double Force_Sensor, double Assistive_Force, int num, float mini, float maxi)
-{ double Force;
-  // smooth sigmoid 'step function' for cutting off low forces
-  Force = Force_Sensor + Assistive_Force;
-  Force = Force / (1. + exp(-10*(fabs(Force_Sensor) - 1)));
-
-
-
-  Kinetics[num].x = sin()
+// FUNCTION : Runs a feedforward control sin wave to set the motor position
+void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi)
+{ float omega=6.28;
+  // position_x   = range_x    *sin(angular_frequency dep. on F     *omega*milli/1000   )+offset_x;
+  Kinetics[num].x = (maxi-mini)*sin(Assistive_Force/Assistive_Force*omega*millis()*0.001)+mini;
   Kinetics[num].x + Kinetics[num].dx * timestep + 0.5 * Kinetics[num].ddx * timestep * timestep;
-
-  // Delimit the positon
-  if (num == 0 || num==3){ //MCP
-    if (Kinetics[num].x < MCP_MIN_RANGE) Kinetics[num].x = MCP_MIN_RANGE;
-    if (Kinetics[num].x > MCP_MAX_RANGE) Kinetics[num].x = MCP_MAX_RANGE;
-  }
-  else{//PIP and DIP
-    if (Kinetics[num].x < PIP_MIN_RANGE) Kinetics[num].x = PIP_MIN_RANGE;
-    if (Kinetics[num].x > PIP_MAX_RANGE) Kinetics[num].x = PIP_MAX_RANGE;
-    }
-
+  // write position to motor
   Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
 }
 
