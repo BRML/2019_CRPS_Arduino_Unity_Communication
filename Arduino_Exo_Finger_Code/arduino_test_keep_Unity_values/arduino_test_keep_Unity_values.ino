@@ -47,6 +47,7 @@ float MCP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm whe
 // mototr 2 and 3 (1 and 2 here)
 float PIP_MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
 float PIP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
+float control_mode = 0; //determins control mode, 0 for admittance control, 1 for sine wave feedforward control
 
 float MAX_FORCE = 0;             // Maximum force of the motors
 
@@ -121,7 +122,7 @@ void setup() {
     Motor[iJoints].attach(Motor_Pin[iJoints]);
 //    Kinetics[0].x = EEPROM.readDouble(addr0);
 //    Motor[iJoints].writeMicroseconds( Kinetics[iJoints].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
-    Motor[iJoints].writeMicroseconds(1500); // drive the motors to medium position
+    Motor[iJoints].writeMicroseconds(1000); // drive the motors to medium position
   }
 
 ////  //read the last motor position and write it to the data
@@ -185,12 +186,18 @@ void loop() {
   Generate_Assistive_Force(Kinetics[2].x, 2);
   Generate_Assistive_Force(Kinetics[3].x, 3);
 
-  // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move synchron
-  Admittance_Control(EMA_S[0], Assistive_Force[0].Force_Level, 0);
-  Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
-  Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
-  Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
-  
+  if (control_mode ==1){
+    // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move synchron
+    Admittance_Control(EMA_S[0], Assistive_Force[0].Force_Level, 0);
+    Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
+    Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
+    Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
+  }
+  else
+  Sin_feedforward(EMA_S[0], Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE);
+  Sin_feedforward(EMA_S[1], Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE);
+  Sin_feedforward(EMA_S[2], Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE);
+  Sin_feedforward(EMA_S[3], Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE);
  
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
   if (feedbackTime > (1 / feedbackFreq)) {
@@ -211,10 +218,11 @@ void loop() {
 //------------------------------------------------------------------------------------------------
 void readUnityInput(){
      //  if(Serial.available()>0){  
-            MCP_MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-            MCP_MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-            PIP_MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-            PIP_MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
+            MCP_MIN_RANGE = (Serial.parseFloat()+10)/100*MAX_LENGTH;
+            MCP_MAX_RANGE = (Serial.parseFloat()+10)/100*MAX_LENGTH;
+            PIP_MIN_RANGE = (Serial.parseFloat()+10)/100*MAX_LENGTH;
+            PIP_MAX_RANGE = (Serial.parseFloat()+10)/100*MAX_LENGTH;
+            control_mode = Serial.parseFloat();
             
 //// if the max min should be stored on the arduino, not tested!
 //            if (MIN_RANGE*90*MAX_LENGTH == -1){
@@ -228,27 +236,6 @@ void readUnityInput(){
           Serial.flush();
         }
 
-
-//void minHandler (const char *command) {
-//  MIN_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-//}
-//
-//void maxHandler (const char *command) {
-//  MAX_RANGE = Serial.parseFloat()/90*MAX_LENGTH;
-//}
-
-//// FUNCTION : After starting the serial connection read the settings done by therapeut from Unity3D
-//void setValues() {
-//  if (Serial.available() > 0){
-//  //    sCmd.readSerial();
-//      // Read general Settings
-//      readUnityInput();
-//  }
-////      Serial.print(MIN_RANGE);
-////  Serial.println();
-////      EEPROM.writeDouble(addr0, MIN_RANGE); //read current motor position and store it on the EEPROM
-//}
-//--END OF CONSTRUCTION SITE---------------------
 
 // FUNCTION : Reads the sensors from the sensor box
 void readSensorBox() {
@@ -305,7 +292,33 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
   Kinetics[num].x = Kinetics[num].x + Kinetics[num].dx * timestep + 0.5 * Kinetics[num].ddx * timestep * timestep;
 
   // Delimit the positon
-  if (num == 0 || num == 3){ //MCP
+  if (num == 0 || num==3){ //MCP
+    if (Kinetics[num].x < MCP_MIN_RANGE) Kinetics[num].x = MCP_MIN_RANGE;
+    if (Kinetics[num].x > MCP_MAX_RANGE) Kinetics[num].x = MCP_MAX_RANGE;
+  }
+  else{//PIP and DIP
+    if (Kinetics[num].x < PIP_MIN_RANGE) Kinetics[num].x = PIP_MIN_RANGE;
+    if (Kinetics[num].x > PIP_MAX_RANGE) Kinetics[num].x = PIP_MAX_RANGE;
+    }
+
+  Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
+}
+
+
+// FUNCTION : Runs afeedforward control sin wave to set the motor position
+void Sin_feedforward(double Force_Sensor, double Assistive_Force, int num, float mini, float maxi)
+{ double Force;
+  // smooth sigmoid 'step function' for cutting off low forces
+  Force = Force_Sensor + Assistive_Force;
+  Force = Force / (1. + exp(-10*(fabs(Force_Sensor) - 1)));
+
+
+
+  Kinetics[num].x = sin()
+  Kinetics[num].x + Kinetics[num].dx * timestep + 0.5 * Kinetics[num].ddx * timestep * timestep;
+
+  // Delimit the positon
+  if (num == 0 || num==3){ //MCP
     if (Kinetics[num].x < MCP_MIN_RANGE) Kinetics[num].x = MCP_MIN_RANGE;
     if (Kinetics[num].x > MCP_MAX_RANGE) Kinetics[num].x = MCP_MAX_RANGE;
   }
