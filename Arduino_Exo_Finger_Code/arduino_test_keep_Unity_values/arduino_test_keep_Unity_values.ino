@@ -48,7 +48,7 @@ float MCP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm whe
 float PIP_MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
 float PIP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
 float control_mode = 0; //determins control mode, 0 for admittance control, 1 for sine wave feedforward control
-
+float timeslot = 0;
 float MAX_FORCE = 0;             // Maximum force of the motors
 
 // Pins on the Arduino //
@@ -78,6 +78,7 @@ Servo Motor[4];                                         // Handle to the motors
 double Offset_Force_Sensor[4] = {689, 671, 598, 632};   // Measured offsets of the force sensors
 double Calib_Force_Sensor[4] = { -1.47, -1.45, -1.54, -1.54}; // Measured calibration factors of the force sensors
 double Force_Force_Sensor[4];                           // Measured force from the force sensors
+double Force_Unfilt_Sensor[4];                          // unfiltered force data for the output
 
 // Sensor box variables //
 float fMAX_Assistance_Force = 0;       // [N] Maximum assistance force, set by the potentiometer
@@ -142,6 +143,7 @@ void loop() {
     double filt = 0.9990;  // Set only between 1.0 and 0.0.  Higher value filters more. Set to 0.0 to get original, unfiltered version.
     double f = (analogRead(Force_Sensor_Pin[iJoints])
                                    - Offset_Force_Sensor[iJoints]) * Calib_Force_Sensor[iJoints] * g;
+    Force_Unfilt_Sensor[iJoints] = Force_Force_Sensor[iJoints];
     Force_Force_Sensor[iJoints] = filt*Force_Force_Sensor[iJoints] + (1.0-filt)*f;          
     EMA_S[iJoints] = (EMA_a*Force_Force_Sensor[iJoints]) + ((1-EMA_a)*EMA_S[iJoints]);  //run the EMA 
   }
@@ -160,10 +162,11 @@ void loop() {
     Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
   }
   else{
-    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE);
-    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE);
-    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE);
-    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE);
+    timeslot = micros();
+    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot);
+    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot);
+    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot);
+    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot);
   }
  
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
@@ -171,13 +174,9 @@ void loop() {
     readSensorBox();          // Read the sensors from the sensor box
     outputData();             // Send data for Unity
     readUnityInput(); //read min max values from Unity
-    //Print_Data2Console();     // Print the data to console on Laptop
     feedbackTime = 0;
-
   }
-
   stp = micros();               // Measure the current time
-
 }
 //------------------------------------------------------------------------------------------------
 // ------------------------------FUNCTIONS--------------------------------------------------------
@@ -259,11 +258,12 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 
 
 // FUNCTION : Runs a feedforward control sin wave to set the motor position
-void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi)
+void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi, float timeslot)
 { float omega=6.28;
+  // Y= Amplitude*sin((2*pi*X/Wavelength)+PhaseShift) + Baseline
   // position_x   = range_x    *sin(angular_frequency dep. on F     *omega*milli/1000   )+offset_x;
-  Kinetics[num].x = (maxi-mini)*sin(Assistive_Force/Assistive_Force*omega*millis()*0.001)+mini;
-  Kinetics[num].x + Kinetics[num].dx * timestep + 0.5 * Kinetics[num].ddx * timestep * timestep;
+  //Kinetics[num].x = (maxi-mini)*sin(omega*millis()*0.0001/(Assistive_Force+1))+mini+(maxi-mini)/2;
+  Kinetics[num].x = (maxi-mini)*sin(omega*timeslot*0.0000001/(Assistive_Force+1))+mini+(maxi-mini)/2; // also WORKING
   // write position to motor
   Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
 }
@@ -286,48 +286,15 @@ void outputData() {
   printout += ",";
   printout += fMAX_Assistance_Force;
   printout += ",";
-  printout += Force_Force_Sensor[0];
+  printout += Force_Unfilt_Sensor[0];
   printout += ",";
-  printout += Force_Force_Sensor[1];
+  printout += Force_Unfilt_Sensor[1];
   printout += ",";
-  printout += Force_Force_Sensor[2];
+  printout += Force_Unfilt_Sensor[2];
   printout += ",";
-  printout += Force_Force_Sensor[3];
+  printout += Force_Unfilt_Sensor[3];
   printout += ",";
   //printout += Assistive_Force[0].Force_Level; //test output assistance force
-  Serial.flush();
-  Serial.println(printout);
-}
-
-// FUNCTION : Prints data to console
-void Print_Data2Console()
-{
-  printout = "F1[N]: ";
-  printout += Force_Force_Sensor[0];
-  printout += " , EMA_S[N]: ";
-  printout += EMA_S[0];
-  //  printout += " , F3: ";
-  //  printout += Force_Force_Sensor[2];
-  //  printout += " , F4: ";
-  //  printout += Force_Force_Sensor[3];
-  printout += " , FAssist[N] :";
-  printout += Assistive_Force[0].Force_Level;
-  //printout += ", FassDir:";
-  //printout += Assistive_Force[0].Direction;
-  //  printout += " , GSR:";
-  //  printout += fGSR_Value;
-  //  printout += " , T[C]:";
-  //  printout += fTemperature_Value;
-  //printout += " , dt[ms]:";
-  //printout += timestep * 1000;
-  //printout += " , tloop[ms] ";
-  //printout += feedbackTime;
-  // printout += " , Acc:";
-  //printout += Kinetics[0].ddx;
-  // printout += ", Vel:";
-  // printout += Kinetics[0].dx;
-  //printout += ", X[mm]:";
-  //printout += Kinetics[0].x * 100;
   Serial.flush();
   Serial.println(printout);
 }
