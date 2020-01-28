@@ -48,8 +48,9 @@ float MCP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm whe
 float PIP_MIN_RANGE = 0;             // Minimum positon of the motors (can be modified from Unity3D)
 float PIP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm when full extended P 16-12-50-64-12-P (can be modified from Unity3D)
 float control_mode = 0; //determins control mode, 0 for admittance control, 1 for sine wave feedforward control
-
+float timeslot = 0;
 float MAX_FORCE = 0;             // Maximum force of the motors
+float foo[4] = {0.03, 0.03, 0.03, 0.03}; // step size motor movement per loop
 
 // Pins on the Arduino //
 int Motor_Pin[4] = {2, 3, 4, 5};                        // Arduino Pins for the motors
@@ -162,10 +163,11 @@ void loop() {
     Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
   }
   else{
-    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE);
-    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE);
-    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE);
-    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE);
+    timeslot = micros();
+    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot, foo);
+    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot, foo);
+    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot, foo);
+    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot, foo);
   }
  
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
@@ -257,12 +259,20 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 
 
 // FUNCTION : Runs a feedforward control sin wave to set the motor position
-void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi)
+void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi, float timeslot,float foo[4])
 { float omega=6.28;
   // Y= Amplitude*sin((2*pi*X/Wavelength)+PhaseShift) + Baseline
-  // position_x   = range_x    *sin(angular_frequency dep. on F     *omega*milli/1000   )+offset_x;
-  //Kinetics[num].x = (maxi-mini)*sin(omega*millis()*0.0001/(Assistive_Force+1))+mini+(maxi-mini)/2;
-  Kinetics[num].x = (maxi-mini)*sin(omega*micros()*0.0000001/(Assistive_Force+1))+mini+(maxi-mini)/2; // also WORKING
+  //// position_x   = range_x    *sin(angular_frequency dep. on F     *omega*milli/1000   )+offset_x;
+  ////Kinetics[num].x = (maxi-mini)*sin(omega*millis()*0.0001/(Assistive_Force+1))+mini+(maxi-mini)/2;
+  //Kinetics[num].x = (maxi-mini)*sin(omega*timeslot*0.0000001/(Assistive_Force+1))+mini+(maxi-mini)/2; // also WORKING
+  
+  if  (Kinetics[num].x < mini)
+  {foo[num] = 0.03;}
+  else
+  {if (Kinetics[num].x > maxi)
+  {foo[num] = -0.03;}
+  }
+  Kinetics[num].x += foo[num];
   // write position to motor
   Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
 }
