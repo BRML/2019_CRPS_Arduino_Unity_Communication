@@ -50,7 +50,8 @@ float PIP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm whe
 float control_mode = 0; //determins control mode, 0 for admittance control, 1 for sine wave feedforward control
 float timeslot = 0;
 float MAX_FORCE = 0;             // Maximum force of the motors
-float foo[4] = {0.03, 0.03, 0.03, 0.03}; // step size motor movement per loop
+float stepsize = 0.001;
+float foo[4] = {stepsize, stepsize, stepsize, stepsize}; // step size motor movement per loop
 
 // Pins on the Arduino //
 int Motor_Pin[4] = {2, 3, 4, 5};                        // Arduino Pins for the motors
@@ -164,10 +165,10 @@ void loop() {
   }
   else{
     timeslot = micros();
-    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot, foo);
-    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot, foo);
-    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot, foo);
-    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot, foo);
+    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot);
+    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot);
+    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot);
+    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot);
   }
  
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
@@ -259,7 +260,7 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 
 
 // FUNCTION : Runs a feedforward control sin wave to set the motor position
-void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi, float timeslot,float foo[4])
+void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi, float timeslot)
 { float omega=6.28;
   // Y= Amplitude*sin((2*pi*X/Wavelength)+PhaseShift) + Baseline
   //// position_x   = range_x    *sin(angular_frequency dep. on F     *omega*milli/1000   )+offset_x;
@@ -267,10 +268,10 @@ void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi, fl
   //Kinetics[num].x = (maxi-mini)*sin(omega*timeslot*0.0000001/(Assistive_Force+1))+mini+(maxi-mini)/2; // also WORKING
   
   if  (Kinetics[num].x < mini)
-  {foo[num] = 0.03;}
+  {foo[num] = stepsize;}
   else
   {if (Kinetics[num].x > maxi)
-  {foo[num] = -0.03;}
+  {foo[num] = -stepsize;}
   }
   Kinetics[num].x += foo[num];
   // write position to motor
