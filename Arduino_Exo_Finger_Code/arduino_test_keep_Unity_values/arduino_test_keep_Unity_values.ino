@@ -50,6 +50,8 @@ float PIP_MAX_RANGE = 0.05 ;         //[m] Max positon of the motors is 50mm whe
 float control_mode = 0; //determins control mode, 0 for admittance control, 1 for sine wave feedforward control
 float timeslot = 0;
 float MAX_FORCE = 0;             // Maximum force of the motors
+float stepsize = 0.00001;
+float foo[4] = {stepsize, stepsize, stepsize, stepsize}; // step size motor movement per loop
 
 // Pins on the Arduino //
 int Motor_Pin[4] = {2, 3, 4, 5};                        // Arduino Pins for the motors
@@ -261,9 +263,17 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi, float timeslot)
 { float omega=6.28;
   // Y= Amplitude*sin((2*pi*X/Wavelength)+PhaseShift) + Baseline
-  // position_x   = range_x    *sin(angular_frequency dep. on F     *omega*milli/1000   )+offset_x;
-  //Kinetics[num].x = (maxi-mini)*sin(omega*millis()*0.0001/(Assistive_Force+1))+mini+(maxi-mini)/2;
-  Kinetics[num].x = (maxi-mini)*sin(omega*timeslot*0.0000001/(Assistive_Force+1))+mini+(maxi-mini)/2; // also WORKING
+  //// position_x   = range_x    *sin(angular_frequency dep. on F     *omega*milli/1000   )+offset_x;
+  ////Kinetics[num].x = (maxi-mini)*sin(omega*millis()*0.0001/(Assistive_Force+1))+mini+(maxi-mini)/2;
+  //Kinetics[num].x = (maxi-mini)*sin(omega*timeslot*0.0000001/(Assistive_Force+1))+mini+(maxi-mini)/2; // also WORKING
+  
+  if  (Kinetics[num].x < mini)
+  {foo[num] = stepsize;}
+  else
+  {if (Kinetics[num].x > maxi)
+  {foo[num] = -stepsize;}
+  }
+  Kinetics[num].x += (fMAX_Assistance_Force+1)*foo[num];
   // write position to motor
   Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
 }
