@@ -158,17 +158,22 @@ void loop() {
 
   if (control_mode == 0){
     // Run the admittance control scheme; here, the forces on one finger are added up, which makes the motors move synchron
-    Admittance_Control(EMA_S[0], Assistive_Force[0].Force_Level, 0);
-    Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
-    Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
-    Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
+//    Admittance_Control(EMA_S[0], Assistive_Force[0].Force_Level, 0);
+//    Admittance_Control(EMA_S[1], Assistive_Force[1].Force_Level, 1);
+//    Admittance_Control(EMA_S[2], Assistive_Force[2].Force_Level, 2);
+//    Admittance_Control(EMA_S[3], Assistive_Force[3].Force_Level, 3);
+Motor[0].writeMicroseconds( MCP_MIN_RANGE / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
+Motor[1].writeMicroseconds( PIP_MIN_RANGE / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
+Motor[2].writeMicroseconds( PIP_MIN_RANGE / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
+Motor[3].writeMicroseconds( MCP_MIN_RANGE / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
   }
   else{
     timeslot = micros();
-    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot);
-    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot);
-    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot);
-    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot);
+    Sin_feedforward(Assistive_Force[0].Force_Level, 0, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot, PIP_MAX_RANGE-PIP_MIN_RANGE);
+    Sin_feedforward(Assistive_Force[1].Force_Level, 1, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot, 1);
+    
+    Sin_feedforward(Assistive_Force[2].Force_Level, 2, PIP_MIN_RANGE, PIP_MAX_RANGE, timeslot, 1);
+    Sin_feedforward(Assistive_Force[3].Force_Level, 3, MCP_MIN_RANGE, MCP_MAX_RANGE, timeslot, PIP_MAX_RANGE-PIP_MIN_RANGE);
   }
  
   // Whenever Feedbacktime = 1/FeedbackFrequency read the sensor box and send data to the PC
@@ -260,20 +265,30 @@ void Admittance_Control(double Force_Sensor, double Assistive_Force, int num)
 
 
 // FUNCTION : Runs a feedforward control sin wave to set the motor position
-void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi, float timeslot)
+void Sin_feedforward(double Assistive_Force, int num, float mini, float maxi, float timeslot, float stepsync)
 { float omega=6.28;
   // Y= Amplitude*sin((2*pi*X/Wavelength)+PhaseShift) + Baseline
   //// position_x   = range_x    *sin(angular_frequency dep. on F     *omega*milli/1000   )+offset_x;
   ////Kinetics[num].x = (maxi-mini)*sin(omega*millis()*0.0001/(Assistive_Force+1))+mini+(maxi-mini)/2;
   //Kinetics[num].x = (maxi-mini)*sin(omega*timeslot*0.0000001/(Assistive_Force+1))+mini+(maxi-mini)/2; // also WORKING
-  
-  if  (Kinetics[num].x < mini)
+  if (stepsync ==1 || stepsync==0)
+  {if  (Kinetics[num].x < mini)
   {foo[num] = stepsize;}
   else
   {if (Kinetics[num].x > maxi)
   {foo[num] = -stepsize;}
   }
   Kinetics[num].x += (fMAX_Assistance_Force+1)*foo[num];
+  }
+  else
+  {if  (Kinetics[num].x < mini)
+  {foo[num] = ((maxi-mini)/stepsync)*stepsize;}
+  else
+  {if (Kinetics[num].x > maxi)
+  {foo[num] = -((maxi-mini)/stepsync)*stepsize;}
+  }
+  Kinetics[num].x += (fMAX_Assistance_Force+1)*foo[num];
+  }
   // write position to motor
   Motor[num].writeMicroseconds( Kinetics[num].x / MAX_LENGTH * MAX_SIGNAL_OFFSET + MIN_SIGNAL_DURATION);
 }
